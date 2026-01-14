@@ -1,7 +1,14 @@
 import { redirect } from "next/navigation";
 import { getPersonalTenantOrThrow } from "@/lib/tenant_personal";
-import { getSessionById, updateSessionMeta, mergeSessionResponses } from "@/lib/db/study_sessions";
-import { SessionEditorForm, type SessionEditorDefaults } from "@/components/session-editor/SessionEditorForm";
+import {
+  getSessionById,
+  updateSessionMeta,
+  mergeSessionResponses,
+} from "@/lib/db/study_sessions";
+import {
+  SessionEditorForm,
+  type SessionEditorDefaults,
+} from "@/components/session-editor/SessionEditorForm";
 
 function toDatetimeLocalValue(iso: string) {
   try {
@@ -34,6 +41,31 @@ function normalizeGenre(raw: string) {
   return v ? v : "Unknown";
 }
 
+// Derive the strict union types directly from SessionEditorDefaults
+type StudyTrack = SessionEditorDefaults["track"];
+type StudyMode = SessionEditorDefaults["mode"];
+type SessionStatus = SessionEditorDefaults["status"];
+
+function normalizeTrack(raw: unknown): StudyTrack {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (v === "beginner" || v === "intermediate" || v === "advanced") return v as StudyTrack;
+  return "beginner" as StudyTrack;
+}
+
+function normalizeMode(raw: unknown): StudyMode {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  // accept older value "freeform" too
+  if (v === "guided") return "guided" as StudyMode;
+  if (v === "free" || v === "freeform") return "free" as StudyMode;
+  return "guided" as StudyMode;
+}
+
+function normalizeStatus(raw: unknown): SessionStatus {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (v === "complete") return "complete" as SessionStatus;
+  return "draft" as SessionStatus;
+}
+
 async function saveSessionAction(args: { sessionId: string }, formData: FormData) {
   "use server";
 
@@ -41,14 +73,15 @@ async function saveSessionAction(args: { sessionId: string }, formData: FormData
   const sessionId = args.sessionId;
 
   const passage = safeString(formData.get("passage")).trim();
-  const track = safeString(formData.get("track")).trim() || "beginner";
-  const mode = safeString(formData.get("mode")).trim() || "guided";
+
+  const track = normalizeTrack(safeString(formData.get("track")));
+  const mode = normalizeMode(safeString(formData.get("mode")));
 
   const genreSelected = normalizeGenre(safeString(formData.get("genre")).trim());
   const genreCustom = safeString(formData.get("genre_custom")).trim();
   const genreFinal = genreCustom ? normalizeGenre(genreCustom) : genreSelected;
 
-  const status = safeString(formData.get("status")).trim() || "draft";
+  const status = normalizeStatus(safeString(formData.get("status")));
 
   const sessionDateLocal = safeString(formData.get("session_date")).trim();
   const sessionDateIso = fromDatetimeLocalValue(sessionDateLocal);
@@ -113,10 +146,10 @@ export default async function SessionEditorPage({
 
   const defaults: SessionEditorDefaults = {
     passage: session.passage ?? "",
-    track: session.track ?? "beginner",
-    mode: session.mode ?? "guided",
+    track: normalizeTrack(session.track),
+    mode: normalizeMode(session.mode),
     genre: normalizeGenre(session.genre ?? "Unknown"),
-    status: (session.status ?? "draft") || "draft",
+    status: normalizeStatus(session.status),
     session_date: toDatetimeLocalValue(session.session_date),
 
     obs: String(r.obs ?? ""),

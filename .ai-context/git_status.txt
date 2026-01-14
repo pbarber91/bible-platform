@@ -1,0 +1,3 @@
+﻿ M docs/AI_STATE.md
+?? .ai-context/
+?? scripts/
