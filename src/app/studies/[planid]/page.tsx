@@ -1,11 +1,15 @@
+// src/app/studies/[planid]/page.tsx
 import { redirect } from "next/navigation";
 import { getPersonalTenantOrThrow } from "@/lib/tenant_personal";
-import { getStudyById } from "@/lib/db/studies";
-import { listSessionsForPlan, createSession } from "@/lib/db/study_sessions";
+import { getStudyById, hardDeleteStudy } from "@/lib/db/studies";
+import {
+  listSessionsForPlan,
+  createSession,
+  hardDeleteSession,
+} from "@/lib/db/study_sessions";
 
 async function newSessionAction(args: { planId: string }, formData: FormData) {
   "use server";
-
   const tenant = await getPersonalTenantOrThrow();
   const planId = args.planId;
 
@@ -23,6 +27,20 @@ async function newSessionAction(args: { planId: string }, formData: FormData) {
   });
 
   redirect(`/sessions/${sessionId}`);
+}
+
+async function deleteStudyAction(planId: string) {
+  "use server";
+  const tenant = await getPersonalTenantOrThrow();
+  await hardDeleteStudy({ workspaceId: tenant.id, id: planId });
+  redirect("/studies");
+}
+
+async function deleteSessionAction(args: { planId: string; sessionId: string }) {
+  "use server";
+  const tenant = await getPersonalTenantOrThrow();
+  await hardDeleteSession({ workspaceId: tenant.id, sessionId: args.sessionId });
+  redirect(`/studies/${encodeURIComponent(args.planId)}`);
 }
 
 function formatDate(value: string) {
@@ -44,12 +62,17 @@ export default async function StudyDetailPage({
 }) {
   const p = await params;
   const tenant = await getPersonalTenantOrThrow();
-
   const study = await getStudyById(tenant.id, p.planid);
+
   if (!study) {
     return (
-      <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
-        Study not found.
+      <div className="grid gap-6">
+        <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          <div className="text-xs text-slate-500">Bible Study • Personal</div>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+            Study not found.
+          </h1>
+        </section>
       </div>
     );
   }
@@ -60,35 +83,43 @@ export default async function StudyDetailPage({
     <div className="grid gap-6">
       <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
         <div className="text-xs text-slate-500">Bible Study • Personal</div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">{study.title}</h1>
+        </div>
 
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{study.title}</h1>
-            <div className="mt-2 text-sm text-slate-600">
-              {study.book} • {study.passage}
-            </div>
-            {Array.isArray(study.tags) && study.tags.length ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {study.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-xl bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            ) : null}
+        <div className="mt-2 text-sm text-slate-600">
+          {study.book} • {study.passage}
+        </div>
+
+        {Array.isArray(study.tags) && study.tags.length ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {study.tags.map((t) => (
+              <span
+                key={t}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
+              >
+                {t}
+              </span>
+            ))}
           </div>
+        ) : null}
 
-          <div className="flex flex-wrap gap-2">
-            <a
-              href="/studies"
-              className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
+        <div className="mt-6 flex flex-wrap gap-2">
+          <a
+            href="/studies"
+            className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
+          >
+            Back to studies
+          </a>
+
+          <form action={deleteStudyAction.bind(null, study.id)}>
+            <button
+              type="submit"
+              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
             >
-              Back to studies
-            </a>
-          </div>
+              Delete
+            </button>
+          </form>
         </div>
       </section>
 
@@ -97,62 +128,60 @@ export default async function StudyDetailPage({
         <div className="mb-3 text-sm font-semibold">New session</div>
 
         <form
-          className="grid gap-3"
           action={newSessionAction.bind(null, { planId: study.id })}
+          className="grid gap-4"
         >
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="sm:col-span-2">
-              <label className="text-xs font-semibold text-slate-600">Passage (optional)</label>
-              <input
-                name="passage"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"
-                placeholder="John 1:1–18"
-              />
+          <label className="grid gap-1">
+            <div className="text-xs font-semibold text-slate-700">
+              Passage (optional)
             </div>
-          </div>
+            <input
+              name="passage"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"
+              placeholder="John 1:1–18"
+            />
+          </label>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-600">Track</label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="grid gap-1">
+              <div className="text-xs font-semibold text-slate-700">Track</div>
               <select
                 name="track"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"
                 defaultValue="beginner"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"
               >
                 <option value="beginner">beginner</option>
                 <option value="intermediate">intermediate</option>
                 <option value="advanced">advanced</option>
               </select>
-            </div>
+            </label>
 
-            <div>
-              <label className="text-xs font-semibold text-slate-600">Mode</label>
+            <label className="grid gap-1">
+              <div className="text-xs font-semibold text-slate-700">Mode</div>
               <select
                 name="mode"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"
                 defaultValue="guided"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"
               >
                 <option value="guided">guided</option>
                 <option value="freeform">freeform</option>
               </select>
-            </div>
-
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-              >
-                Create session
-              </button>
-            </div>
+            </label>
           </div>
+
+          <button
+            type="submit"
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          >
+            Create session
+          </button>
         </form>
       </section>
 
       {/* Sessions list */}
       <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold">Sessions ({sessions.length})</div>
+        <div className="mb-3 text-sm font-semibold">
+          Sessions ({sessions.length})
         </div>
 
         {sessions.length === 0 ? (
@@ -162,36 +191,51 @@ export default async function StudyDetailPage({
         ) : (
           <div className="grid gap-3">
             {sessions.map((s) => (
-              <a
-                key={s.id}
-                href={`/sessions/${s.id}`}
-                className="rounded-xl border border-slate-200 p-4 hover:bg-slate-50"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <div key={s.id} className="flex items-stretch gap-3">
+                <a
+                  href={`/sessions/${encodeURIComponent(s.id)}`}
+                  className="flex-1 rounded-xl border border-slate-200 p-4 hover:bg-slate-50"
+                >
                   <div className="text-sm font-semibold">
                     {s.passage ? s.passage : "Session"}
                   </div>
-                  <div className="text-xs text-slate-500">{formatDate(s.session_date)}</div>
-                </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {formatDate(s.session_date)}
+                  </div>
 
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {s.track ? (
-                    <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-800">
-                      {s.track}
-                    </span>
-                  ) : null}
-                  {s.mode ? (
-                    <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-800">
-                      {s.mode}
-                    </span>
-                  ) : null}
-                  {s.status ? (
-                    <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-800">
-                      {s.status}
-                    </span>
-                  ) : null}
-                </div>
-              </a>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                    {s.track ? (
+                      <span className="rounded-xl bg-slate-100 px-3 py-1">
+                        {s.track}
+                      </span>
+                    ) : null}
+                    {s.mode ? (
+                      <span className="rounded-xl bg-slate-100 px-3 py-1">
+                        {s.mode}
+                      </span>
+                    ) : null}
+                    {s.status ? (
+                      <span className="rounded-xl bg-slate-100 px-3 py-1">
+                        {s.status}
+                      </span>
+                    ) : null}
+                  </div>
+                </a>
+
+                <form
+                  action={deleteSessionAction.bind(null, {
+                    planId: study.id,
+                    sessionId: s.id,
+                  })}
+                >
+                  <button
+                    type="submit"
+                    className="h-full rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </form>
+              </div>
             ))}
           </div>
         )}

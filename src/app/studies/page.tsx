@@ -1,5 +1,14 @@
+// src/app/studies/page.tsx
+import { redirect } from "next/navigation";
 import { getPersonalTenantOrThrow } from "@/lib/tenant_personal";
-import { listStudies } from "@/lib/db/studies";
+import { hardDeleteStudy, listStudies } from "@/lib/db/studies";
+
+async function deleteStudyAction(planId: string) {
+  "use server";
+  const tenant = await getPersonalTenantOrThrow();
+  await hardDeleteStudy({ workspaceId: tenant.id, id: planId });
+  redirect("/studies");
+}
 
 export default async function StudiesPage() {
   const tenant = await getPersonalTenantOrThrow();
@@ -18,7 +27,7 @@ export default async function StudiesPage() {
             New study
           </a>
         </div>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-3 text-sm text-slate-600">
           Your personal Bible study workspace.
         </p>
       </section>
@@ -31,17 +40,29 @@ export default async function StudiesPage() {
         ) : (
           <div className="grid gap-3">
             {studies.map((s) => (
-              <a
-                key={s.id}
-                href={`/studies/${s.id}`}
-                className="rounded-xl border border-slate-200 p-4 hover:bg-slate-50"
-              >
-                <div className="text-sm font-semibold">{s.title}</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {s.book} • {s.passage}
-                </div>
-                {s.tags ? <div className="mt-2 text-sm text-slate-700">{s.tags}</div> : null}
-              </a>
+              <div key={s.id} className="flex items-stretch gap-3">
+                <a
+                  href={`/studies/${s.id}`}
+                  className="flex-1 rounded-xl border border-slate-200 p-4 hover:bg-slate-50"
+                >
+                  <div className="text-sm font-semibold">{s.title}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {s.book} • {s.passage}
+                  </div>
+                  {s.tags ? (
+                    <div className="mt-2 text-sm text-slate-700">{s.tags}</div>
+                  ) : null}
+                </a>
+
+                <form action={deleteStudyAction.bind(null, s.id)}>
+                  <button
+                    type="submit"
+                    className="h-full rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </form>
+              </div>
             ))}
           </div>
         )}

@@ -4,11 +4,13 @@ export type StudyPlan = {
   id: string;
   workspace_id: string;
   created_by: string;
+
   title: string;
   book: string;
   passage: string;
   description: string | null;
   tags: string[] | null; // <-- IMPORTANT: treat as array
+
   created_at: string; // timestamptz
   updated_at: string | null;
   deleted_at: string | null;
@@ -18,7 +20,6 @@ export type StudyPlan = {
  * Reads use the view (study_plans).
  * Writes use the base table (study_plans_v2).
  */
-
 function parseTags(raw: string | null | undefined): string[] {
   const s = (raw ?? "").trim();
   if (!s) return [];
@@ -38,12 +39,12 @@ function parseTags(raw: string | null | undefined): string[] {
     seen.add(key);
     out.push(p);
   }
+
   return out;
 }
 
 export async function listStudies(workspaceId: string): Promise<StudyPlan[]> {
   const sb = await createSupabaseServerClient();
-
   const { data, error } = await sb
     .from("study_plans") // view
     .select(
@@ -62,7 +63,6 @@ export async function getStudyById(
   id: string
 ): Promise<StudyPlan | null> {
   const sb = await createSupabaseServerClient();
-
   const { data, error } = await sb
     .from("study_plans") // view
     .select(
@@ -92,9 +92,7 @@ export async function createStudy(args: {
   if (!u.user) throw new Error("Not authenticated.");
 
   const id = crypto.randomUUID();
-
-  const tagsArr =
-    Array.isArray(args.tags) ? args.tags : parseTags(args.tags ?? "");
+  const tagsArr = Array.isArray(args.tags) ? args.tags : parseTags(args.tags ?? "");
 
   const { error } = await sb.from("study_plans_v2").insert({
     id,
@@ -122,9 +120,7 @@ export async function updateStudy(args: {
   tags?: string | string[] | null;
 }): Promise<void> {
   const sb = await createSupabaseServerClient();
-
-  const tagsArr =
-    Array.isArray(args.tags) ? args.tags : parseTags(args.tags ?? "");
+  const tagsArr = Array.isArray(args.tags) ? args.tags : parseTags(args.tags ?? "");
 
   const { error } = await sb
     .from("study_plans_v2")
@@ -146,7 +142,6 @@ export async function softDeleteStudy(args: {
   id: string;
 }): Promise<void> {
   const sb = await createSupabaseServerClient();
-
   const { error } = await sb
     .from("study_plans_v2")
     .update({ deleted_at: new Date().toISOString() })
@@ -154,4 +149,28 @@ export async function softDeleteStudy(args: {
     .eq("id", args.id);
 
   if (error) throw new Error(error.message);
+}
+
+export async function hardDeleteStudy(args: {
+  workspaceId: string;
+  id: string;
+}): Promise<void> {
+  const sb = await createSupabaseServerClient();
+
+  // Delete sessions first to avoid FK constraints.
+  const { error: sessErr } = await sb
+    .from("study_sessions_v2")
+    .delete()
+    .eq("workspace_id", args.workspaceId)
+    .eq("plan_id", args.id);
+
+  if (sessErr) throw new Error(sessErr.message);
+
+  const { error: planErr } = await sb
+    .from("study_plans_v2")
+    .delete()
+    .eq("workspace_id", args.workspaceId)
+    .eq("id", args.id);
+
+  if (planErr) throw new Error(planErr.message);
 }

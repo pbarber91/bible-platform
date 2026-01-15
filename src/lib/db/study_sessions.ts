@@ -5,14 +5,17 @@ export type StudySession = {
   workspace_id: string;
   created_by: string;
   plan_id: string;
+
   session_date: string; // timestamptz ISO
   passage: string | null;
   track: string | null;
   mode: string | null;
   genre: string; // NOT NULL in DB
   responses: Record<string, any> | null;
+
   status: string | null;
   completed_at: string | null;
+
   created_at: string;
   updated_at: string | null;
   deleted_at: string | null;
@@ -23,7 +26,6 @@ export async function listSessionsForPlan(
   planId: string
 ): Promise<StudySession[]> {
   const sb = await createSupabaseServerClient();
-
   const { data, error } = await sb
     .from("study_sessions")
     .select(
@@ -43,7 +45,6 @@ export async function getSessionById(
   sessionId: string
 ): Promise<StudySession | null> {
   const sb = await createSupabaseServerClient();
-
   const { data, error } = await sb
     .from("study_sessions")
     .select(
@@ -186,10 +187,23 @@ export async function softDeleteSession(args: {
   sessionId: string;
 }): Promise<void> {
   const sb = await createSupabaseServerClient();
-
   const { error } = await sb
     .from("study_sessions_v2")
     .update({ deleted_at: new Date().toISOString() })
+    .eq("workspace_id", args.workspaceId)
+    .eq("id", args.sessionId);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function hardDeleteSession(args: {
+  workspaceId: string;
+  sessionId: string;
+}): Promise<void> {
+  const sb = await createSupabaseServerClient();
+  const { error } = await sb
+    .from("study_sessions_v2")
+    .delete()
     .eq("workspace_id", args.workspaceId)
     .eq("id", args.sessionId);
 
