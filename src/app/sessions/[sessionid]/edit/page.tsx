@@ -113,6 +113,37 @@ async function saveSessionAction(args: { sessionId: string }, formData: FormData
   redirect(`/sessions/${encodeURIComponent(sessionId)}?saved=1`);
 }
 
+async function fetchNetPlainTextAction(passageRaw: string) {
+  "use server";
+
+  const tenant = await getPersonalTenantOrThrow();
+  void tenant;
+
+  const passage = (passageRaw || "").trim();
+  if (!passage) return "";
+
+  const url = `https://labs.bible.org/api/?passage=${encodeURIComponent(passage)}&type=json&formatting=plain`;
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`NET API error (${res.status})`);
+
+  const data = (await res.json()) as Array<any>;
+  const verses = Array.isArray(data) ? data : [];
+
+  const lines: string[] = [];
+  for (const v of verses) {
+    const book = typeof v?.bookname === "string" ? v.bookname : "";
+    const chap = typeof v?.chapter === "string" || typeof v?.chapter === "number" ? String(v.chapter) : "";
+    const vs = typeof v?.verse === "string" || typeof v?.verse === "number" ? String(v.verse) : "";
+    const t = typeof v?.text === "string" ? v.text : "";
+
+    if (book && chap && vs) lines.push(`${book} ${chap}:${vs} ${t}`.trim());
+    else if (t) lines.push(String(t).trim());
+  }
+
+  return lines.filter(Boolean).join("\n");
+}
+
 function pickFirstString(v: string | string[] | undefined): string | undefined {
   if (!v) return undefined;
   return Array.isArray(v) ? v[0] : v;
@@ -176,6 +207,7 @@ export default async function SessionEditorPage({
       backToStudyHref={`/studies`}
       defaults={defaults}
       action={saveSessionAction.bind(null, { sessionId: p.sessionid })}
+      netFetchPlainTextAction={fetchNetPlainTextAction}
     />
   );
 }

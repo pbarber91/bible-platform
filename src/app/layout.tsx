@@ -1,5 +1,7 @@
+// src/app/layout.tsx
 import "./globals.css";
 import type { Metadata } from "next";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "Bible Tools Platform",
@@ -9,8 +11,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-900">
+      <body>
         {children}
+
+        {/* NETBibleTagger (turns scripture refs into NET hover popups) */}
+        <Script
+          src="https://labs.bible.org/api/NETBibleTagger/v2/netbibletagger.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

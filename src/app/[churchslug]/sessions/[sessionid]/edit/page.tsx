@@ -107,10 +107,46 @@ async function saveSessionAction(args: { churchslug: string; sessionId: string }
 
   if (status === "complete") {
     const token = Date.now().toString(10);
-    redirect(`/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(sessionId)}/edit?saved=1&win=1&win_token=${encodeURIComponent(token)}`);
+    redirect(
+      `/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(
+        sessionId
+      )}/edit?saved=1&win=1&win_token=${encodeURIComponent(token)}`
+    );
   }
 
   redirect(`/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(sessionId)}?saved=1`);
+}
+
+async function fetchNetPlainTextAction(args: { churchslug: string }, passageRaw: string) {
+  "use server";
+
+  const tenant = await getTenantBySlugOrThrow(args.churchslug);
+  // Tenant is fetched intentionally (keeps action consistent with auth/tenant guards)
+  void tenant;
+
+  const passage = (passageRaw || "").trim();
+  if (!passage) return "";
+
+  const url = `https://labs.bible.org/api/?passage=${encodeURIComponent(passage)}&type=json&formatting=plain`;
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`NET API error (${res.status})`);
+
+  const data = (await res.json()) as Array<any>;
+  const verses = Array.isArray(data) ? data : [];
+
+  const lines: string[] = [];
+  for (const v of verses) {
+    const book = typeof v?.bookname === "string" ? v.bookname : "";
+    const chap = typeof v?.chapter === "string" || typeof v?.chapter === "number" ? String(v.chapter) : "";
+    const vs = typeof v?.verse === "string" || typeof v?.verse === "number" ? String(v.verse) : "";
+    const t = typeof v?.text === "string" ? v.text : "";
+
+    if (book && chap && vs) lines.push(`${book} ${chap}:${vs} ${t}`.trim());
+    else if (t) lines.push(String(t).trim());
+  }
+
+  return lines.filter(Boolean).join("\n");
 }
 
 function pickFirstString(v: string | string[] | undefined): string | undefined {
@@ -171,11 +207,14 @@ export default async function ChurchSessionEditorPage({
       tenantLabel={p.churchslug}
       saved={saved}
       showWinMoment={win && defaults.status === "complete"}
-      winMomentId={winToken ? `church:${p.churchslug}:${p.sessionid}:${winToken}` : `church:${p.churchslug}:${p.sessionid}`}
+      winMomentId={
+        winToken ? `church:${p.churchslug}:${p.sessionid}:${winToken}` : `church:${p.churchslug}:${p.sessionid}`
+      }
       backToViewerHref={`/${encodeURIComponent(p.churchslug)}/sessions/${encodeURIComponent(p.sessionid)}`}
       backToStudyHref={`/${encodeURIComponent(p.churchslug)}/studies`}
       defaults={defaults}
       action={saveSessionAction.bind(null, { churchslug: p.churchslug, sessionId: p.sessionid })}
+      netFetchPlainTextAction={fetchNetPlainTextAction.bind(null, { churchslug: p.churchslug })}
     />
   );
 }
