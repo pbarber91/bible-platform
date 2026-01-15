@@ -1,14 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTenantBySlugOrThrow } from "@/lib/tenant";
-import {
-  getSessionById,
-  updateSessionMeta,
-  mergeSessionResponses,
-} from "@/lib/db/study_sessions";
-import {
-  SessionEditorForm,
-  type SessionEditorDefaults,
-} from "@/components/session-editor/SessionEditorForm";
+import { getSessionById, updateSessionMeta, mergeSessionResponses } from "@/lib/db/study_sessions";
+import { SessionEditorForm, type SessionEditorDefaults } from "@/components/session-editor/SessionEditorForm";
 
 function toDatetimeLocalValue(iso: string) {
   try {
@@ -41,7 +34,6 @@ function normalizeGenre(raw: string) {
   return v ? v : "Unknown";
 }
 
-// Derive the strict union types directly from SessionEditorDefaults
 type StudyTrack = SessionEditorDefaults["track"];
 type StudyMode = SessionEditorDefaults["mode"];
 type SessionStatus = SessionEditorDefaults["status"];
@@ -65,17 +57,13 @@ function normalizeStatus(raw: unknown): SessionStatus {
   return "draft" as SessionStatus;
 }
 
-async function saveSessionAction(
-  args: { churchslug: string; sessionId: string },
-  formData: FormData
-) {
+async function saveSessionAction(args: { churchslug: string; sessionId: string }, formData: FormData) {
   "use server";
 
   const tenant = await getTenantBySlugOrThrow(args.churchslug);
   const sessionId = args.sessionId;
 
   const passage = safeString(formData.get("passage")).trim();
-
   const track = normalizeTrack(safeString(formData.get("track")));
   const mode = normalizeMode(safeString(formData.get("mode")));
 
@@ -99,17 +87,15 @@ async function saveSessionAction(
     status,
   });
 
-  const patch: Record<string, any> = {
+  const patch: Record<string, string> = {
     obs: safeString(formData.get("obs")).trim(),
     aud: safeString(formData.get("aud")).trim(),
     mean: safeString(formData.get("mean")).trim(),
     sim: safeString(formData.get("sim")).trim(),
     diff: safeString(formData.get("diff")).trim(),
     app: safeString(formData.get("app")).trim(),
-
     passageText: safeString(formData.get("passageText")).trim(),
     notes: safeString(formData.get("notes")).trim(),
-
     advStructure: safeString(formData.get("advStructure")).trim(),
     advThemes: safeString(formData.get("advThemes")).trim(),
     advCrossRefs: safeString(formData.get("advCrossRefs")).trim(),
@@ -119,9 +105,17 @@ async function saveSessionAction(
 
   await mergeSessionResponses({ workspaceId: tenant.id, sessionId, patch });
 
-  redirect(
-    `/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(sessionId)}?saved=1`
-  );
+  if (status === "complete") {
+    const token = Date.now().toString(10);
+    redirect(`/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(sessionId)}/edit?saved=1&win=1&win_token=${encodeURIComponent(token)}`);
+  }
+
+  redirect(`/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(sessionId)}?saved=1`);
+}
+
+function pickFirstString(v: string | string[] | undefined): string | undefined {
+  if (!v) return undefined;
+  return Array.isArray(v) ? v[0] : v;
 }
 
 export default async function ChurchSessionEditorPage({
@@ -133,20 +127,19 @@ export default async function ChurchSessionEditorPage({
 }) {
   const p = await params;
   const sp = (await searchParams) ?? {};
+
   const saved = sp.saved === "1";
+  const win = sp.win === "1";
+  const winToken = pickFirstString(sp.win_token);
 
   const tenant = await getTenantBySlugOrThrow(p.churchslug);
   const session = await getSessionById(tenant.id, p.sessionid);
 
   if (!session) {
-    return (
-      <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
-        Session not found.
-      </div>
-    );
+    return <div>Session not found.</div>;
   }
 
-  const r = (session.responses ?? {}) as Record<string, any>;
+  const r = (session.responses ?? {}) as Record<string, unknown>;
 
   const defaults: SessionEditorDefaults = {
     passage: session.passage ?? "",
@@ -175,19 +168,14 @@ export default async function ChurchSessionEditorPage({
 
   return (
     <SessionEditorForm
-      tenantLabel={tenant.name}
+      tenantLabel={p.churchslug}
       saved={saved}
-      backToViewerHref={`/${encodeURIComponent(p.churchslug)}/sessions/${encodeURIComponent(
-        session.id
-      )}`}
-      backToStudyHref={`/${encodeURIComponent(p.churchslug)}/studies/${encodeURIComponent(
-        session.plan_id
-      )}`}
+      showWinMoment={win && defaults.status === "complete"}
+      winMomentId={winToken ? `church:${p.churchslug}:${p.sessionid}:${winToken}` : `church:${p.churchslug}:${p.sessionid}`}
+      backToViewerHref={`/${encodeURIComponent(p.churchslug)}/sessions/${encodeURIComponent(p.sessionid)}`}
+      backToStudyHref={`/${encodeURIComponent(p.churchslug)}/studies`}
       defaults={defaults}
-      action={saveSessionAction.bind(null, {
-        churchslug: p.churchslug,
-        sessionId: session.id,
-      })}
+      action={saveSessionAction.bind(null, { churchslug: p.churchslug, sessionId: p.sessionid })}
     />
   );
 }

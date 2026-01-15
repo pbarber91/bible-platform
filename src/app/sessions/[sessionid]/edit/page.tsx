@@ -1,14 +1,7 @@
 import { redirect } from "next/navigation";
 import { getPersonalTenantOrThrow } from "@/lib/tenant_personal";
-import {
-  getSessionById,
-  updateSessionMeta,
-  mergeSessionResponses,
-} from "@/lib/db/study_sessions";
-import {
-  SessionEditorForm,
-  type SessionEditorDefaults,
-} from "@/components/session-editor/SessionEditorForm";
+import { getSessionById, updateSessionMeta, mergeSessionResponses } from "@/lib/db/study_sessions";
+import { SessionEditorForm, type SessionEditorDefaults } from "@/components/session-editor/SessionEditorForm";
 
 function toDatetimeLocalValue(iso: string) {
   try {
@@ -41,7 +34,6 @@ function normalizeGenre(raw: string) {
   return v ? v : "Unknown";
 }
 
-// Derive the strict union types directly from SessionEditorDefaults
 type StudyTrack = SessionEditorDefaults["track"];
 type StudyMode = SessionEditorDefaults["mode"];
 type SessionStatus = SessionEditorDefaults["status"];
@@ -54,7 +46,6 @@ function normalizeTrack(raw: unknown): StudyTrack {
 
 function normalizeMode(raw: unknown): StudyMode {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  // accept older value "freeform" too
   if (v === "guided") return "guided" as StudyMode;
   if (v === "free" || v === "freeform") return "free" as StudyMode;
   return "guided" as StudyMode;
@@ -73,7 +64,6 @@ async function saveSessionAction(args: { sessionId: string }, formData: FormData
   const sessionId = args.sessionId;
 
   const passage = safeString(formData.get("passage")).trim();
-
   const track = normalizeTrack(safeString(formData.get("track")));
   const mode = normalizeMode(safeString(formData.get("mode")));
 
@@ -97,17 +87,15 @@ async function saveSessionAction(args: { sessionId: string }, formData: FormData
     status,
   });
 
-  const patch: Record<string, any> = {
+  const patch: Record<string, string> = {
     obs: safeString(formData.get("obs")).trim(),
     aud: safeString(formData.get("aud")).trim(),
     mean: safeString(formData.get("mean")).trim(),
     sim: safeString(formData.get("sim")).trim(),
     diff: safeString(formData.get("diff")).trim(),
     app: safeString(formData.get("app")).trim(),
-
     passageText: safeString(formData.get("passageText")).trim(),
     notes: safeString(formData.get("notes")).trim(),
-
     advStructure: safeString(formData.get("advStructure")).trim(),
     advThemes: safeString(formData.get("advThemes")).trim(),
     advCrossRefs: safeString(formData.get("advCrossRefs")).trim(),
@@ -117,7 +105,17 @@ async function saveSessionAction(args: { sessionId: string }, formData: FormData
 
   await mergeSessionResponses({ workspaceId: tenant.id, sessionId, patch });
 
+  if (status === "complete") {
+    const token = Date.now().toString(10);
+    redirect(`/sessions/${encodeURIComponent(sessionId)}/edit?saved=1&win=1&win_token=${encodeURIComponent(token)}`);
+  }
+
   redirect(`/sessions/${encodeURIComponent(sessionId)}?saved=1`);
+}
+
+function pickFirstString(v: string | string[] | undefined): string | undefined {
+  if (!v) return undefined;
+  return Array.isArray(v) ? v[0] : v;
 }
 
 export default async function SessionEditorPage({
@@ -129,20 +127,19 @@ export default async function SessionEditorPage({
 }) {
   const p = await params;
   const sp = (await searchParams) ?? {};
+
   const saved = sp.saved === "1";
+  const win = sp.win === "1";
+  const winToken = pickFirstString(sp.win_token);
 
   const tenant = await getPersonalTenantOrThrow();
   const session = await getSessionById(tenant.id, p.sessionid);
 
   if (!session) {
-    return (
-      <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
-        Session not found.
-      </div>
-    );
+    return <div>Session not found.</div>;
   }
 
-  const r = (session.responses ?? {}) as Record<string, any>;
+  const r = (session.responses ?? {}) as Record<string, unknown>;
 
   const defaults: SessionEditorDefaults = {
     passage: session.passage ?? "",
@@ -173,10 +170,12 @@ export default async function SessionEditorPage({
     <SessionEditorForm
       tenantLabel="Personal"
       saved={saved}
-      backToViewerHref={`/sessions/${encodeURIComponent(session.id)}`}
-      backToStudyHref={`/studies/${encodeURIComponent(session.plan_id)}`}
+      showWinMoment={win && defaults.status === "complete"}
+      winMomentId={winToken ? `personal:${p.sessionid}:${winToken}` : `personal:${p.sessionid}`}
+      backToViewerHref={`/sessions/${encodeURIComponent(p.sessionid)}`}
+      backToStudyHref={`/studies`}
       defaults={defaults}
-      action={saveSessionAction.bind(null, { sessionId: session.id })}
+      action={saveSessionAction.bind(null, { sessionId: p.sessionid })}
     />
   );
 }

@@ -32,17 +32,21 @@ export type SessionEditorDefaults = {
 type Props = {
   tenantLabel: string;
   saved?: boolean;
+  /** When true, requests the Win Moment modal to show. (We will still de-dupe via winMomentId.) */
+  showWinMoment?: boolean;
+  /**
+   * A unique id for this Win Moment event (e.g. sessionId + win_token).
+   * This enables "open only once" even if the user refreshes the page.
+   */
+  winMomentId?: string;
+
   backToViewerHref: string;
   backToStudyHref: string;
   defaults: SessionEditorDefaults;
   action: (formData: FormData) => void;
 };
 
-type ToolLink = {
-  label: string;
-  url: string;
-  tooltip: string;
-};
+type ToolLink = { label: string; url: string; tooltip: string };
 
 const GENRES = [
   "Unknown",
@@ -58,7 +62,6 @@ const GENRES = [
 function normalizeGenreLabel(raw: string): string {
   const v = (raw || "").trim();
   if (!v) return "Unknown";
-  // accept prior variants
   if (v === "Poetry" || v === "Wisdom") return "Poetry/Wisdom";
   return v;
 }
@@ -78,7 +81,7 @@ function trackSummary(track: StudyTrack) {
 function genreObservationHint(genre: string) {
   switch (normalizeGenreLabel(genre)) {
     case "Poetry/Wisdom":
-      return "Write observations about imagery/parallelism/contrasts. Avoid jumping to meaning yet.";
+      return "Write observations about imagery/parallelism/contrasts.\nAvoid jumping to meaning yet.";
     case "Epistle":
       return "Track the author’s logic: claims → reasons → implications (“therefore”).";
     case "Narrative":
@@ -92,11 +95,10 @@ function genreObservationHint(genre: string) {
     case "Gospel":
       return "Note Jesus’ actions/words and repeated themes; how do people respond?";
     default:
-      return "Write text-based observations. Use the tools if you’re not sure where to start.";
+      return "Write text-based observations.\nUse the tools if you’re not sure where to start.";
   }
 }
 
-// Flutter parity: copy that auto-shifts by Track
 function copyObsTitle(track: StudyTrack) {
   switch (track) {
     case "beginner":
@@ -113,9 +115,9 @@ function copyObsHelper(track: StudyTrack) {
     case "beginner":
       return "Slow down and list what you see in the text (repeated words, people, actions, “because/therefore”, contrasts).";
     case "intermediate":
-      return "Observation = what the text says. Start with repeated words, people, contrasts, cause/effect.";
+      return "Observation = what the text says.\nStart with repeated words, people, contrasts, cause/effect.";
     case "advanced":
-      return "Stay text-first. Mark imperatives, discourse flow (claims → reasons → implications), contrasts, and repeated terms.";
+      return "Stay text-first.\nMark imperatives, discourse flow (claims → reasons → implications), contrasts, and repeated terms.";
   }
 }
 
@@ -134,11 +136,11 @@ function copyObsHint(track: StudyTrack, genre: string) {
 function copyAppHelper(track: StudyTrack) {
   switch (track) {
     case "beginner":
-      return "Write one clear response that you can actually do this week. Keep it simple and honest.";
+      return "Write one clear response that you can actually do this week.\nKeep it simple and honest.";
     case "intermediate":
       return "Write a specific response that is faithful to the text and wise for today.";
     case "advanced":
-      return "State a text-grounded obedience response (motive + measurable step + timeframe). Keep it God-centered.";
+      return "State a text-grounded obedience response (motive + measurable step + timeframe).\nKeep it God-centered.";
   }
 }
 
@@ -146,8 +148,6 @@ function copyAppHint(track: StudyTrack) {
   switch (track) {
     case "advanced":
       return "Example: “Therefore, I will ___ because ___ (tied to the text), by ___, so that ___.”";
-    case "beginner":
-    case "intermediate":
     default:
       return "Example: “This week I will ___ because ___ … by ___.”";
   }
@@ -222,7 +222,6 @@ function contextChecklist(genre: string): string[] {
   }
 }
 
-// Flutter parity: section-specific tools (wrench button)
 const TOOLS_BY_CARD: Record<string, ToolLink[]> = {
   passageText: [
     {
@@ -230,17 +229,9 @@ const TOOLS_BY_CARD: Record<string, ToolLink[]> = {
       url: "https://labs.bible.org/api/?passage=John+3:16-17",
       tooltip: "Opens NET passage output (easy copy/paste)",
     },
-    {
-      label: "StepBible",
-      url: "https://www.stepbible.org/",
-      tooltip: "Find a passage + compare tools",
-    },
+    { label: "StepBible", url: "https://www.stepbible.org/", tooltip: "Find a passage + compare tools" },
     { label: "ESV Bible", url: "https://www.esv.org/", tooltip: "Clean passage text for copy/paste" },
-    {
-      label: "BibleGateway",
-      url: "https://www.biblegateway.com/",
-      tooltip: "Compare translations before pasting",
-    },
+    { label: "BibleGateway", url: "https://www.biblegateway.com/", tooltip: "Compare translations before pasting" },
   ],
   genre: [
     {
@@ -255,73 +246,35 @@ const TOOLS_BY_CARD: Record<string, ToolLink[]> = {
     },
   ],
   context: [
-    {
-      label: "BibleProject",
-      url: "https://bibleproject.com/explore/book-overviews/",
-      tooltip: "Background + structure",
-    },
-    {
-      label: "StepBible",
-      url: "https://www.stepbible.org/",
-      tooltip: "Cross-refs + study tools",
-    },
-    {
-      label: "Bible Odyssey",
-      url: "https://www.bibleodyssey.org/",
-      tooltip: "Cultural background",
-    },
+    { label: "BibleProject", url: "https://bibleproject.com/explore/book-overviews/", tooltip: "Background + structure" },
+    { label: "StepBible", url: "https://www.stepbible.org/", tooltip: "Cross-refs + study tools" },
+    { label: "Bible Odyssey", url: "https://www.bibleodyssey.org/", tooltip: "Cultural background" },
     { label: "NET Bible", url: "https://netbible.org/", tooltip: "Translator notes explain why wording matters" },
   ],
   obs: [
     { label: "StepBible", url: "https://www.stepbible.org/", tooltip: "Read in context + notes + cross-refs" },
-    {
-      label: "Blue Letter Bible",
-      url: "https://www.blueletterbible.org/",
-      tooltip: "Interlinear + key word lookups",
-    },
+    { label: "Blue Letter Bible", url: "https://www.blueletterbible.org/", tooltip: "Interlinear + key word lookups" },
     { label: "NET Bible", url: "https://netbible.org/", tooltip: "Translator notes explain why wording matters" },
-    {
-      label: "OpenBible (Cross-refs)",
-      url: "https://www.openbible.info/labs/cross-references/",
-      tooltip: "Visualizes textual connections",
-    },
+    { label: "OpenBible (Cross-refs)", url: "https://www.openbible.info/labs/cross-references/", tooltip: "Visualizes textual connections" },
   ],
   aud: [
-    {
-      label: "BibleProject",
-      url: "https://bibleproject.com/explore/book-overviews/",
-      tooltip: "Audience + historical setting",
-    },
+    { label: "BibleProject", url: "https://bibleproject.com/explore/book-overviews/", tooltip: "Audience + historical setting" },
     { label: "StepBible", url: "https://www.stepbible.org/", tooltip: "Notes + background tools" },
   ],
   mean: [
     { label: "BibleProject (Themes)", url: "https://bibleproject.com/explore/themes/", tooltip: "Explore themes" },
     { label: "StepBible", url: "https://www.stepbible.org/", tooltip: "Compare translations + notes" },
-    {
-      label: "Blue Letter Bible",
-      url: "https://www.blueletterbible.org/",
-      tooltip: "Check key terms (don’t overdo it)",
-    },
+    { label: "Blue Letter Bible", url: "https://www.blueletterbible.org/", tooltip: "Check key terms (don’t overdo it)" },
   ],
   sim: [
     { label: "BibleProject (Themes)", url: "https://bibleproject.com/explore/themes/", tooltip: "Themes that carry over" },
-    {
-      label: "GotQuestions",
-      url: "https://www.gotquestions.org/",
-      tooltip: "Topic summary (compare carefully)",
-    },
+    { label: "GotQuestions", url: "https://www.gotquestions.org/", tooltip: "Topic summary (compare carefully)" },
   ],
   diff: [
     { label: "BibleProject (Covenants)", url: "https://bibleproject.com/videos/covenants/", tooltip: "Covenant/storyline differences" },
     { label: "StepBible", url: "https://www.stepbible.org/", tooltip: "Cross-refs to clarify scope" },
   ],
-  app: [
-    {
-      label: "BibleProject (Character of God)",
-      url: "https://bibleproject.com/videos/collections/character-of-god/",
-      tooltip: "Keep application God-centered",
-    },
-  ],
+  app: [{ label: "BibleProject (Character of God)", url: "https://bibleproject.com/videos/collections/character-of-god/", tooltip: "Keep application God-centered" }],
   notes: [{ label: "StepBible", url: "https://www.stepbible.org/", tooltip: "Quick cross-refs to capture in notes" }],
   advStructure: [
     { label: "BibleProject", url: "https://bibleproject.com/explore/book-overviews/", tooltip: "Structure + flow overview" },
@@ -346,11 +299,7 @@ const TOOLS_BY_CARD: Record<string, ToolLink[]> = {
 };
 
 const GLOBAL_RESOURCES: Array<{ title: string; subtitle: string; url: string }> = [
-  {
-    title: "BibleProject — Book Overviews",
-    subtitle: "Quick context + structure for every book.",
-    url: "https://bibleproject.com/explore/book-overviews/",
-  },
+  { title: "BibleProject — Book Overviews", subtitle: "Quick context + structure for every book.", url: "https://bibleproject.com/explore/book-overviews/" },
   { title: "ESV Bible", subtitle: "Clean passage text for copy/paste", url: "https://www.esv.org/" },
   { title: "NET Bible", subtitle: "Translator notes explain why wording matters", url: "https://netbible.org/" },
   { title: "StepBible — Free study tools", subtitle: "Cross references, lexicon, notes.", url: "https://www.stepbible.org/" },
@@ -370,62 +319,195 @@ function ToolsModal({
   onClose: () => void;
 }) {
   if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center"
-      onMouseDown={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="w-full max-w-xl rounded-2xl bg-white p-4 shadow-xl ring-1 ring-slate-200"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-base font-semibold">{title}</div>
-            <div className="mt-1 text-xs font-medium text-slate-500">
-              Tap a tool to open it in your browser.
-            </div>
-          </div>
-          <button
-            type="button"
-            className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
+      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl ring-1 ring-black/5" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-semibold tracking-tight text-slate-900">{title}</div>
+        <div className="mt-1 text-sm text-slate-600">Tap a tool to open it in your browser.</div>
 
-        <div className="mt-4 grid gap-3">
+        <div className="mt-4 space-y-2">
           {tools.length ? (
             tools.map((t) => (
               <a
-                key={`${t.label}-${t.url}`}
+                key={t.url}
                 href={t.url}
                 target="_blank"
                 rel="noreferrer"
-                className="group rounded-2xl border border-slate-200 bg-white p-4 hover:bg-slate-50"
-                title={t.tooltip}
+                className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm hover:bg-slate-50"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">{t.label}</div>
-                    <div className="mt-1 text-xs text-slate-600">{t.tooltip}</div>
-                  </div>
-                  <div className="text-xs font-semibold text-slate-400 group-hover:text-slate-600">
-                    ↗
-                  </div>
+                <div>
+                  <div className="font-semibold text-slate-900">{t.label}</div>
+                  <div className="mt-0.5 text-xs text-slate-600">{t.tooltip}</div>
                 </div>
+                <div className="text-slate-400">↗</div>
               </a>
             ))
           ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">No tools linked for this step yet.</div>
+          )}
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function trimOrEmpty(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function buildCopyText(metaLine: string, sections: Array<{ label: string; value: string }>) {
+  const lines: string[] = [];
+  lines.push("Session Summary");
+  lines.push(metaLine);
+  lines.push("");
+
+  for (const s of sections) {
+    lines.push(`${s.label}:`);
+    lines.push(s.value);
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through
+  }
+
+  // fallback
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function WinMomentModal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  metaLine,
+  completionLabel,
+  sections,
+  backToViewerHref,
+  backToStudyHref,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle: string;
+  metaLine: string;
+  completionLabel: string;
+  sections: Array<{ label: string; value: string }>;
+  backToViewerHref: string;
+  backToStudyHref: string;
+}) {
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) setCopied(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  const copyText = buildCopyText(`${metaLine} • ${completionLabel}`, sections);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label="Session complete">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl ring-1 ring-black/5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xl font-semibold tracking-tight text-slate-900">{title}</div>
+            <div className="mt-1 text-sm text-slate-600">{subtitle}</div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">{metaLine}</div>
+              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">{completionLabel}</div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={async () => {
+              const ok = await copyToClipboard(copyText);
+              setCopied(ok);
+              if (ok) setTimeout(() => setCopied(false), 1600);
+            }}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            Copy summary
+          </button>
+
+          {copied ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+              Copied.
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {sections.length ? (
+            sections.map((s) => (
+              <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-sm font-semibold text-slate-900">{s.label}</div>
+                <div className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{s.value}</div>
+              </div>
+            ))
+          ) : (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-              No tools linked for this step yet.
+              No notes were added yet — you can keep editing, or jump back to the viewer.
             </div>
           )}
         </div>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <a
+            href={backToStudyHref}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 text-center"
+          >
+            Back to study
+          </a>
+          <a href={backToViewerHref} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 text-center">
+            View session
+          </a>
+        </div>
+
+        <div className="mt-4 text-xs text-slate-500">Tip: If you want to tweak anything, close this and keep editing — your work is already saved.</div>
       </div>
     </div>
   );
@@ -437,33 +519,26 @@ function CardShell({
   children,
   toolsKey,
   onOpenTools,
-  defaultOpen = false,
-  id,
 }: {
   title: string;
   helper?: string;
   children: React.ReactNode;
   toolsKey?: string;
   onOpenTools?: (key: string, title: string) => void;
-  defaultOpen?: boolean;
-  id?: string;
 }) {
   return (
-    <section
-      id={id}
-      className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
-    >
-      <div className="flex items-start justify-between gap-3">
+    <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-base font-semibold tracking-tight">{title}</div>
-          {helper ? <div className="mt-1 text-sm text-slate-600">{helper}</div> : null}
+          <div className="text-base font-semibold tracking-tight text-slate-900">{title}</div>
+          {helper ? <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{helper}</div> : null}
         </div>
 
         {toolsKey && onOpenTools ? (
           <button
             type="button"
-            className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50"
             onClick={() => onOpenTools(toolsKey, `Tools for ${title.replace(/^\d+\)\s*/, "")}`)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
             title="Tools"
           >
             🛠️
@@ -476,25 +551,41 @@ function CardShell({
   );
 }
 
+function computeCompletionFromDefaults(track: StudyTrack, d: SessionEditorDefaults) {
+  const baseKeys: Array<keyof SessionEditorDefaults> = ["obs", "app"];
+  const midKeys: Array<keyof SessionEditorDefaults> = ["aud", "mean", "sim", "diff"];
+  const advKeys: Array<keyof SessionEditorDefaults> = ["advStructure", "advThemes", "advCrossRefs", "advWordStudy", "advCommentary"];
+
+  const keys: Array<keyof SessionEditorDefaults> =
+    track === "beginner" ? baseKeys : track === "intermediate" ? [...baseKeys, ...midKeys] : [...baseKeys, ...midKeys, ...advKeys];
+
+  const filled = keys.filter((k) => trimOrEmpty(d[k]).length > 0).length;
+  const total = keys.length || 1;
+  const pct = Math.max(0, Math.min(100, Math.round((filled / total) * 100)));
+  return { filled, total, pct };
+}
+
 export function SessionEditorForm({
   tenantLabel,
   saved,
+  showWinMoment,
+  winMomentId,
   backToViewerHref,
   backToStudyHref,
   defaults,
   action,
 }: Props) {
-  const [track, setTrack] = React.useState<StudyTrack>(
-    (defaults.track || "beginner") as StudyTrack
-  );
+  const [track, setTrack] = React.useState((defaults.track || "beginner") as StudyTrack);
   const [mode, setMode] = React.useState<"guided" | "free">(defaults.mode || "guided");
-  const [genreSelected, setGenreSelected] = React.useState<string>(
-    normalizeGenreLabel(defaults.genre || "Unknown")
-  );
-  const [genreCustom, setGenreCustom] = React.useState<string>("");
+
+  const [genreSelected, setGenreSelected] = React.useState(normalizeGenreLabel(defaults.genre || "Unknown"));
+  const [genreCustom, setGenreCustom] = React.useState("");
+
   const [toolsOpen, setToolsOpen] = React.useState(false);
   const [toolsTitle, setToolsTitle] = React.useState("Tools");
-  const [toolsKey, setToolsKey] = React.useState<string>("");
+  const [toolsKey, setToolsKey] = React.useState("");
+
+  const [winOpen, setWinOpen] = React.useState(false);
 
   const showIntermediate = track === "intermediate" || track === "advanced";
   const showAdvanced = track === "advanced";
@@ -507,6 +598,28 @@ export function SessionEditorForm({
     setToolsOpen(true);
   }
 
+  // OPEN ONLY ONCE:
+  // When showWinMoment is true, we only open the modal once per winMomentId.
+  React.useEffect(() => {
+    if (!showWinMoment) return;
+    if (!winMomentId) {
+      setWinOpen(true);
+      return;
+    }
+
+    try {
+      const storageKey = `bsh_winmoment_seen:${winMomentId}`;
+      const already = sessionStorage.getItem(storageKey) === "1";
+      if (!already) {
+        sessionStorage.setItem(storageKey, "1");
+        setWinOpen(true);
+      }
+    } catch {
+      // sessionStorage may be blocked; fallback: show
+      setWinOpen(true);
+    }
+  }, [showWinMoment, winMomentId]);
+
   const obsTitle = copyObsTitle(track);
   const obsHelper = copyObsHelper(track);
   const obsHint = copyObsHint(track, genreFinal);
@@ -517,443 +630,406 @@ export function SessionEditorForm({
 
   const checklist = contextChecklist(genreFinal);
 
+  const statusDefault: "draft" | "complete" = defaults.status === "complete" ? "complete" : "draft";
+
+  const winSections: Array<{ label: string; value: string }> = React.useMemo(() => {
+    const sections: Array<{ label: string; value: string }> = [];
+
+    const passageText = trimOrEmpty(defaults.passageText);
+    if (passageText) sections.push({ label: "Passage text", value: passageText });
+
+    const obs = trimOrEmpty(defaults.obs);
+    if (obs) sections.push({ label: "Observations", value: obs });
+
+    if (showIntermediate) {
+      const aud = trimOrEmpty(defaults.aud);
+      if (aud) sections.push({ label: "Original audience", value: aud });
+
+      const mean = trimOrEmpty(defaults.mean);
+      if (mean) sections.push({ label: "Meaning (then)", value: mean });
+
+      const sim = trimOrEmpty(defaults.sim);
+      if (sim) sections.push({ label: "Similarities (bridge)", value: sim });
+
+      const diff = trimOrEmpty(defaults.diff);
+      if (diff) sections.push({ label: "Differences (guardrails)", value: diff });
+    }
+
+    const app = trimOrEmpty(defaults.app);
+    if (app) sections.push({ label: "Application / response", value: app });
+
+    if (showAdvanced) {
+      const advStructure = trimOrEmpty(defaults.advStructure);
+      if (advStructure) sections.push({ label: "Advanced — Structure / flow", value: advStructure });
+
+      const advThemes = trimOrEmpty(defaults.advThemes);
+      if (advThemes) sections.push({ label: "Advanced — Themes", value: advThemes });
+
+      const advCrossRefs = trimOrEmpty(defaults.advCrossRefs);
+      if (advCrossRefs) sections.push({ label: "Advanced — Cross references", value: advCrossRefs });
+
+      const advWordStudy = trimOrEmpty(defaults.advWordStudy);
+      if (advWordStudy) sections.push({ label: "Advanced — Word study", value: advWordStudy });
+
+      const advCommentary = trimOrEmpty(defaults.advCommentary);
+      if (advCommentary) sections.push({ label: "Advanced — Commentary / questions", value: advCommentary });
+    }
+
+    const notes = trimOrEmpty(defaults.notes);
+    if (notes) sections.push({ label: "Notes", value: notes });
+
+    return sections;
+  }, [
+    defaults.passageText,
+    defaults.obs,
+    defaults.aud,
+    defaults.mean,
+    defaults.sim,
+    defaults.diff,
+    defaults.app,
+    defaults.advStructure,
+    defaults.advThemes,
+    defaults.advCrossRefs,
+    defaults.advWordStudy,
+    defaults.advCommentary,
+    defaults.notes,
+    showIntermediate,
+    showAdvanced,
+  ]);
+
+  const toolsForModal = TOOLS_BY_CARD[toolsKey] ?? [];
+
+  const metaLine = `Track: ${trackLabel(track)} • Mode: ${mode} • Genre: ${genreFinal === "Unknown" ? "General" : genreFinal}`;
+
+  const completion = React.useMemo(() => computeCompletionFromDefaults(track, defaults), [track, defaults]);
+  const completionLabel = `Completion: ${completion.pct}% (${completion.filled}/${completion.total})`;
+
   return (
-    <form action={action} className="grid gap-6">
-      <ToolsModal
-        open={toolsOpen}
-        title={toolsTitle}
-        tools={TOOLS_BY_CARD[toolsKey] ?? []}
-        onClose={() => setToolsOpen(false)}
+    <>
+      <ToolsModal open={toolsOpen} title={toolsTitle} tools={toolsForModal} onClose={() => setToolsOpen(false)} />
+
+      <WinMomentModal
+        open={winOpen}
+        onClose={() => setWinOpen(false)}
+        title="Session complete 🎉"
+        subtitle="Here’s a quick summary of what you captured."
+        metaLine={metaLine}
+        completionLabel={completionLabel}
+        sections={winSections}
+        backToViewerHref={backToViewerHref}
+        backToStudyHref={backToStudyHref}
       />
 
-      <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
-        <div className="text-xs text-slate-500">Bible Study • {tenantLabel}</div>
+      <form action={action} className="mx-auto max-w-3xl px-4 pb-16 pt-8">
+        <div className="text-sm font-semibold text-slate-700">Bible Study • {tenantLabel}</div>
 
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+        <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{defaults.passage ? defaults.passage : "Study session"}</div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {defaults.passage ? defaults.passage : "Study session"}
-            </h1>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="rounded-xl bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">
-                Track: {trackLabel(track)}
-              </span>
-              <span className="rounded-xl bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">
-                Mode: {mode}
-              </span>
-              <span className="rounded-xl bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">
-                Genre: {genreFinal === "Unknown" ? "General" : genreFinal}
-              </span>
-              <span className="rounded-xl bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">
-                {trackSummary(track)}
-              </span>
-            </div>
+            Track: <span className="font-semibold text-slate-800">{trackLabel(track)}</span>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <a
-              className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
-              href={backToStudyHref}
-            >
-              Back to study
-            </a>
-            <a
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50"
-              href={backToViewerHref}
-            >
-              Back to viewer
-            </a>
-            <button
-              type="submit"
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-            >
-              Save
-            </button>
+          <div>
+            Mode: <span className="font-semibold text-slate-800">{mode}</span>
           </div>
+          <div>
+            Genre: <span className="font-semibold text-slate-800">{genreFinal === "Unknown" ? "General" : genreFinal}</span>
+          </div>
+          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{trackSummary(track)}</div>
         </div>
 
-        {saved ? (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            Saved.
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <a href={backToStudyHref} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            Back to study
+          </a>
+
+          <a href={backToViewerHref} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            Back to viewer
+          </a>
+
+          <button type="submit" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            Save
+          </button>
+
+          {saved ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Saved.</div>
+          ) : null}
+        </div>
+
+        <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="text-base font-semibold tracking-tight text-slate-900">Passage reference</div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <div className="text-sm font-semibold text-slate-800">Passage reference</div>
+              <input
+                name="passage"
+                defaultValue={defaults.passage}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="e.g., John 15:1–17"
+              />
+            </label>
+
+            <label className="block">
+              <div className="text-sm font-semibold text-slate-800">Session date</div>
+              <input
+                name="session_date"
+                type="datetime-local"
+                defaultValue={defaults.session_date}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+              />
+            </label>
           </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <div className="text-sm font-semibold text-slate-800">Track</div>
+              <select
+                value={track}
+                onChange={(e) => setTrack((e.target.value as StudyTrack) || "beginner")}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+              >
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <div className="text-sm font-semibold text-slate-800">Mode</div>
+              <select
+                value={mode}
+                onChange={(e) => setMode((e.target.value as "guided" | "free") || "guided")}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+              >
+                <option value="guided">guided</option>
+                <option value="free">free</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <div className="text-sm font-semibold text-slate-800">Status</div>
+              <select
+                name="status"
+                defaultValue={statusDefault}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+              >
+                <option value="draft">draft</option>
+                <option value="complete">complete</option>
+              </select>
+            </label>
+
+            <div className="block">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-slate-800">Genre</div>
+                <button
+                  type="button"
+                  onClick={() => openTools("genre", "Tools for Genre")}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                  title="Tools"
+                >
+                  🛠️
+                </button>
+              </div>
+
+              <select
+                value={genreSelected}
+                onChange={(e) => setGenreSelected(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+              >
+                {GENRES.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                value={genreCustom}
+                onChange={(e) => setGenreCustom(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="Custom genre (optional)"
+              />
+
+              <div className="mt-2 text-xs text-slate-600">Genre lens: {genreFinal === "Unknown" ? "Use general prompts." : "Genre shapes what to look for."}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="text-base font-semibold tracking-tight text-slate-900">Free resources (all)</div>
+          <div className="mt-1 text-sm text-slate-600">Global list of tools you can reference anytime.</div>
+
+          <div className="mt-4 grid gap-3">
+            {GLOBAL_RESOURCES.map((r) => (
+              <a key={r.url} href={r.url} target="_blank" rel="noreferrer" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm hover:bg-slate-50">
+                <div className="font-semibold text-slate-900">{r.title}</div>
+                <div className="mt-0.5 text-xs text-slate-600">{r.subtitle}</div>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <CardShell title="Genre lens + passage text" helper="Tip: Use the 🛠️ Tools button for genre references without leaving this step." toolsKey="passageText" onOpenTools={openTools}>
+          <div className="text-sm text-slate-700">{genreFinal === "Unknown" ? "If you’re not sure, keep it as Unknown and start with the general prompts." : `Selected genre: ${genreFinal}`}</div>
+          <div className="mt-2 text-xs text-slate-600">Tip: If you paste full text, you’ll spot repeated terms and structure more easily.</div>
+
+          <textarea
+            name="passageText"
+            defaultValue={defaults.passageText}
+            className="mt-4 min-h-[200px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+            placeholder="Paste the passage text here (optional but helpful)."
+          />
+        </CardShell>
+
+        {showIntermediate ? (
+          <CardShell title="Historical / cultural context (Intermediate)" helper="Answer “Who/why/what was happening?” so application stays accurate." toolsKey="context" onOpenTools={openTools}>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-semibold text-slate-900">Quick checklist ({genreFinal === "Unknown" ? "General" : genreFinal})</div>
+              <ul className="mt-2 list-disc pl-5 text-sm text-slate-700">{checklist.slice(0, 3).map((c) => <li key={c}>{c}</li>)}</ul>
+              <div className="mt-3 text-xs text-slate-600">Templates live in the Audience / Meaning boxes below (open those cards and start with simple bullets).</div>
+            </div>
+          </CardShell>
         ) : null}
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="text-xs font-semibold text-slate-600">Passage reference</label>
-            <input
-              name="passage"
-              defaultValue={defaults.passage}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="e.g., John 1:1–18"
-            />
-          </div>
+        <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="text-base font-semibold tracking-tight text-slate-900">Guided study prompts</div>
+          <div className="mt-1 text-sm text-slate-600">Work top to bottom. Keep it text-based before interpreting.</div>
+        </section>
 
-          <div>
-            <label className="text-xs font-semibold text-slate-600">Session date</label>
-            <input
-              name="session_date"
-              type="datetime-local"
-              defaultValue={defaults.session_date}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-600">Track</label>
-            <select
-              name="track"
-              defaultValue={defaults.track}
-              onChange={(e) => setTrack((e.target.value as StudyTrack) || "beginner")}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-            >
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-600">Mode</label>
-            <select
-              name="mode"
-              defaultValue={defaults.mode}
-              onChange={(e) => setMode((e.target.value as "guided" | "free") || "guided")}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-            >
-              <option value="guided">guided</option>
-              <option value="free">free</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-600">Status</label>
-            <select
-              name="status"
-              defaultValue={defaults.status}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-            >
-              <option value="draft">draft</option>
-              <option value="complete">complete</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-600">Genre</label>
-            <select
-              name="genre"
-              value={genreSelected}
-              onChange={(e) => setGenreSelected(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-            >
-              {GENRES.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-            <input
-              name="genre_custom"
-              value={genreCustom}
-              onChange={(e) => setGenreCustom(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="Custom genre (optional)"
-            />
-            <div className="mt-2 text-xs text-slate-600">
-              <span className="font-semibold">Genre lens:</span>{" "}
-              {genreFinal === "Unknown" ? "Use general prompts." : "Genre shapes what to look for."}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Free resources (all) */}
-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-base font-semibold tracking-tight">Free resources (all)</div>
-            <div className="mt-1 text-sm text-slate-600">
-              Global list of tools you can reference anytime.
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {GLOBAL_RESOURCES.map((r) => (
-            <a
-              key={r.url}
-              href={r.url}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-2xl border border-slate-200 bg-white p-4 hover:bg-slate-50"
-            >
-              <div className="text-sm font-semibold text-slate-900">{r.title}</div>
-              <div className="mt-1 text-xs text-slate-600">{r.subtitle}</div>
-            </a>
-          ))}
-        </div>
-      </section>
-
-      {/* Setup: Genre lens + Passage text */}
-      <CardShell
-        title="Genre lens"
-        helper="Genre shapes what to look for."
-        toolsKey="genre"
-        onOpenTools={openTools}
-      >
-        <div className="text-xs font-semibold text-slate-600">
-          Tip: Use the 🛠️ Tools button for genre references without leaving this step.
-        </div>
-        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          {genreFinal === "Unknown"
-            ? "If you’re not sure, keep it as Unknown and start with the general prompts."
-            : `Selected genre: ${genreFinal}`}
-        </div>
-      </CardShell>
-
-      <CardShell
-        title="Paste passage text (optional)"
-        helper="This enables repeated-word suggestions and makes observation easier."
-        toolsKey="passageText"
-        onOpenTools={openTools}
-      >
-        <textarea
-          name="passageText"
-          defaultValue={defaults.passageText}
-          className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-          placeholder="Paste the verses here… (optional)"
-        />
-        <div className="mt-2 text-xs text-slate-600">
-          Tip: If you paste full text, you’ll spot repeated terms and structure more easily.
-        </div>
-      </CardShell>
-
-      {showIntermediate ? (
-        <CardShell
-          title="Historical / cultural context (Intermediate)"
-          helper="Answer “Who/why/what was happening?” so application stays accurate."
-          toolsKey="context"
-          onOpenTools={openTools}
-        >
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-semibold text-slate-900">
-              Quick checklist ({genreFinal === "Unknown" ? "General" : genreFinal})
-            </div>
-            <ul className="mt-2 list-disc pl-5 text-sm text-slate-700">
-              {checklist.slice(0, 3).map((c) => (
-                <li key={c}>{c}</li>
-              ))}
-            </ul>
-            <div className="mt-3 text-xs text-slate-600">
-              Templates live in the Audience / Meaning boxes below (open those cards and start with simple bullets).
-            </div>
-          </div>
+        <CardShell title={obsTitle} helper={obsHelper} toolsKey="obs" onOpenTools={openTools}>
+          <textarea
+            name="obs"
+            defaultValue={defaults.obs}
+            className="min-h-[180px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+            placeholder={obsHint}
+          />
         </CardShell>
-      ) : null}
 
-      {/* Guided study prompts */}
-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="text-base font-semibold tracking-tight">Guided study prompts</div>
-        <div className="mt-1 text-sm text-slate-600">
-          Work top to bottom. Keep it text-based before interpreting.
-        </div>
-      </section>
+        {showIntermediate ? (
+          <>
+            <CardShell title="2) Original audience" helper="Who heard/read this first? What was their situation?" toolsKey="aud" onOpenTools={openTools}>
+              <textarea
+                name="aud"
+                defaultValue={defaults.aud}
+                className="min-h-[150px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="Audience, setting, pressures, cultural background…"
+              />
+            </CardShell>
 
-      <CardShell title={obsTitle} helper={obsHelper} toolsKey="obs" onOpenTools={openTools} id="obs">
-        <textarea
-          name="obs"
-          defaultValue={defaults.obs}
-          className="min-h-[180px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-          placeholder={obsHint}
-        />
-      </CardShell>
+            <CardShell title="3) What did it mean to them?" helper="What would the original audience understand this to mean in THEIR world?" toolsKey="mean" onOpenTools={openTools}>
+              <textarea
+                name="mean"
+                defaultValue={defaults.mean}
+                className="min-h-[150px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="Meaning to them, why it mattered, assumptions they already had…"
+              />
+            </CardShell>
 
-      {showIntermediate ? (
-        <>
-          <CardShell
-            title="2) Original audience"
-            helper="Who heard/read this first? What was their situation?"
-            toolsKey="aud"
-            onOpenTools={openTools}
-            id="aud"
-          >
-            <textarea
-              name="aud"
-              defaultValue={defaults.aud}
-              className="min-h-[150px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="Audience, setting, pressures, cultural background…"
-            />
-          </CardShell>
+            <CardShell title="4) How is our context similar?" helper="Bridge: what overlaps between their world and ours?" toolsKey="sim" onOpenTools={openTools}>
+              <textarea
+                name="sim"
+                defaultValue={defaults.sim}
+                className="min-h-[140px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="Similarities (faith, struggles, community, temptations)…"
+              />
+            </CardShell>
 
-          <CardShell
-            title="3) What did it mean to them?"
-            helper="What would the original audience understand this to mean in THEIR world?"
-            toolsKey="mean"
-            onOpenTools={openTools}
-            id="mean"
-          >
-            <textarea
-              name="mean"
-              defaultValue={defaults.mean}
-              className="min-h-[150px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="Meaning to them, why it mattered, assumptions they already had…"
-            />
-          </CardShell>
+            <CardShell title="5) How is our context different?" helper="Guardrail: name differences so you don’t misapply." toolsKey="diff" onOpenTools={openTools}>
+              <textarea
+                name="diff"
+                defaultValue={defaults.diff}
+                className="min-h-[140px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="Differences (covenant, culture, setting, audience)…"
+              />
+            </CardShell>
+          </>
+        ) : null}
 
-          <CardShell
-            title="4) How is our context similar?"
-            helper="Bridge: what overlaps between their world and ours?"
-            toolsKey="sim"
-            onOpenTools={openTools}
-            id="sim"
-          >
-            <textarea
-              name="sim"
-              defaultValue={defaults.sim}
-              className="min-h-[140px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="Similarities (faith, struggles, community, temptations)…"
-            />
-          </CardShell>
+        <CardShell title={appTitle} helper={appHelper} toolsKey="app" onOpenTools={openTools}>
+          <textarea
+            name="app"
+            defaultValue={defaults.app}
+            className="min-h-[180px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+            placeholder={appHint}
+          />
+        </CardShell>
 
-          <CardShell
-            title="5) How is our context different?"
-            helper="Guardrail: name differences so you don’t misapply."
-            toolsKey="diff"
-            onOpenTools={openTools}
-            id="diff"
-          >
-            <textarea
-              name="diff"
-              defaultValue={defaults.diff}
-              className="min-h-[140px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="Differences (covenant, culture, setting, audience)…"
-            />
-          </CardShell>
-        </>
-      ) : null}
+        {showAdvanced ? (
+          <>
+            <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="text-base font-semibold tracking-tight text-slate-900">Advanced study</div>
+              <div className="mt-1 text-sm text-slate-600">Optional deep-dive prompts for structure, themes, and cross-references.</div>
+            </section>
 
-      <CardShell title={appTitle} helper={appHelper} toolsKey="app" onOpenTools={openTools} id="app">
-        <textarea
-          name="app"
-          defaultValue={defaults.app}
-          className="min-h-[180px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-          placeholder={appHint}
-        />
-      </CardShell>
+            <CardShell title="A) Structure / argument flow" helper="Outline the logic or movement of the passage (claims → reasons → implications)." toolsKey="advStructure" onOpenTools={openTools}>
+              <textarea
+                name="advStructure"
+                defaultValue={defaults.advStructure}
+                className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="Example: vv1–2 claim, vv3–5 reasons, vv6–8 application…"
+              />
+            </CardShell>
 
-      {showAdvanced ? (
-        <>
-          <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="text-base font-semibold tracking-tight">Advanced study</div>
-            <div className="mt-1 text-sm text-slate-600">
-              Optional deep-dive prompts for structure, themes, and cross-references.
-            </div>
-          </section>
+            <CardShell title="B) Big theological themes" helper="What truths about God, humanity, salvation, covenant, kingdom, holiness, etc.\nshow up here?" toolsKey="advThemes" onOpenTools={openTools}>
+              <textarea
+                name="advThemes"
+                defaultValue={defaults.advThemes}
+                className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="List 2–5 themes and point to the verse(s) that show them."
+              />
+            </CardShell>
 
-          <CardShell
-            title="A) Structure / argument flow"
-            helper="Outline the logic or movement of the passage (claims → reasons → implications)."
-            toolsKey="advStructure"
-            onOpenTools={openTools}
-            id="advStructure"
-          >
-            <textarea
-              name="advStructure"
-              defaultValue={defaults.advStructure}
-              className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="Example: vv1–2 claim, vv3–5 reasons, vv6–8 application…"
-            />
-          </CardShell>
+            <CardShell title="C) Cross references / intertext" helper="Where does Scripture interpret Scripture? Note OT echoes, quotations, or parallel passages." toolsKey="advCrossRefs" onOpenTools={openTools}>
+              <textarea
+                name="advCrossRefs"
+                defaultValue={defaults.advCrossRefs}
+                className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="Write references and what connection you see (theme/phrase/concept)."
+              />
+            </CardShell>
 
-          <CardShell
-            title="B) Big theological themes"
-            helper="What truths about God, humanity, salvation, covenant, kingdom, holiness, etc. show up here?"
-            toolsKey="advThemes"
-            onOpenTools={openTools}
-            id="advThemes"
-          >
-            <textarea
-              name="advThemes"
-              defaultValue={defaults.advThemes}
-              className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="List 2–5 themes and point to the verse(s) that show them."
-            />
-          </CardShell>
+            <CardShell title="D) Word study (key terms)" helper="Choose 1–3 key words.\nDefine them from context, then check lexicon/interlinear." toolsKey="advWordStudy" onOpenTools={openTools}>
+              <textarea
+                name="advWordStudy"
+                defaultValue={defaults.advWordStudy}
+                className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="Word → meaning in context → other uses → how it impacts interpretation."
+              />
+            </CardShell>
 
-          <CardShell
-            title="C) Cross references / intertext"
-            helper="Where does Scripture interpret Scripture? Note OT echoes, quotations, or parallel passages."
-            toolsKey="advCrossRefs"
-            onOpenTools={openTools}
-            id="advCrossRefs"
-          >
-            <textarea
-              name="advCrossRefs"
-              defaultValue={defaults.advCrossRefs}
-              className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="Write references and what connection you see (theme/phrase/concept)."
-            />
-          </CardShell>
+            <CardShell title="E) Commentary / questions to resolve" helper="Summarize what you found from a trusted resource and list any remaining questions." toolsKey="advCommentary" onOpenTools={openTools}>
+              <textarea
+                name="advCommentary"
+                defaultValue={defaults.advCommentary}
+                className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+                placeholder="What did you learn? What are 1–3 questions you still need to resolve?"
+              />
+            </CardShell>
+          </>
+        ) : null}
 
-          <CardShell
-            title="D) Word study (key terms)"
-            helper="Choose 1–3 key words. Define them from context, then check lexicon/interlinear."
-            toolsKey="advWordStudy"
-            onOpenTools={openTools}
-            id="advWordStudy"
-          >
-            <textarea
-              name="advWordStudy"
-              defaultValue={defaults.advWordStudy}
-              className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="Word → meaning in context → other uses → how it impacts interpretation."
-            />
-          </CardShell>
+        <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="text-base font-semibold tracking-tight text-slate-900">Notes</div>
+          <div className="mt-1 text-sm text-slate-600">Capture extra insights, questions, and prayer notes.</div>
+        </section>
 
-          <CardShell
-            title="E) Commentary / questions to resolve"
-            helper="Summarize what you found from a trusted resource and list any remaining questions."
-            toolsKey="advCommentary"
-            onOpenTools={openTools}
-            id="advCommentary"
-          >
-            <textarea
-              name="advCommentary"
-              defaultValue={defaults.advCommentary}
-              className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-              placeholder="What did you learn? What are 1–3 questions you still need to resolve?"
-            />
-          </CardShell>
-        </>
-      ) : null}
+        <CardShell title="Additional notes (optional)" helper="Extra notes, cross references, prayer notes, questions…" toolsKey="notes" onOpenTools={openTools}>
+          <textarea
+            name="notes"
+            defaultValue={defaults.notes}
+            className="min-h-[200px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
+            placeholder="Write anything helpful here…"
+          />
+        </CardShell>
 
-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <div className="text-base font-semibold tracking-tight">Notes</div>
-        <div className="mt-1 text-sm text-slate-600">
-          Capture extra insights, questions, and prayer notes.
-        </div>
-      </section>
-
-      <CardShell
-        title="Additional notes (optional)"
-        helper="Extra notes, cross references, prayer notes, questions…"
-        toolsKey="notes"
-        onOpenTools={openTools}
-        id="notes"
-      >
-        <textarea
-          name="notes"
-          defaultValue={defaults.notes}
-          className="min-h-[200px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-0 focus:border-slate-300"
-          placeholder="Write anything helpful here…"
-        />
-      </CardShell>
-
-      {/* keep inputs present so server action always receives them */}
-      <input type="hidden" name="track" value={track} readOnly />
-      <input type="hidden" name="mode" value={mode} readOnly />
-      <input type="hidden" name="genre" value={genreSelected} readOnly />
-      <input type="hidden" name="genre_custom" value={genreCustom} readOnly />
-    </form>
+        <input type="hidden" name="track" value={track} readOnly />
+        <input type="hidden" name="mode" value={mode} readOnly />
+        <input type="hidden" name="genre" value={genreSelected} readOnly />
+        <input type="hidden" name="genre_custom" value={genreCustom} readOnly />
+      </form>
+    </>
   );
 }
