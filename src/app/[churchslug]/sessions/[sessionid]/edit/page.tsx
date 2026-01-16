@@ -1,7 +1,15 @@
+// src/app/[churchslug]/sessions/[sessionid]/edit/page.tsx
 import { redirect } from "next/navigation";
 import { getTenantBySlugOrThrow } from "@/lib/tenant";
-import { getSessionById, updateSessionMeta, mergeSessionResponses } from "@/lib/db/study_sessions";
-import { SessionEditorForm, type SessionEditorDefaults } from "@/components/session-editor/SessionEditorForm";
+import {
+  getSessionById,
+  updateSessionMeta,
+  mergeSessionResponses,
+} from "@/lib/db/study_sessions";
+import {
+  SessionEditorForm,
+  type SessionEditorDefaults,
+} from "@/components/session-editor/SessionEditorForm";
 
 function toDatetimeLocalValue(iso: string) {
   try {
@@ -40,7 +48,8 @@ type SessionStatus = SessionEditorDefaults["status"];
 
 function normalizeTrack(raw: unknown): StudyTrack {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  if (v === "beginner" || v === "intermediate" || v === "advanced") return v as StudyTrack;
+  if (v === "beginner" || v === "intermediate" || v === "advanced")
+    return v as StudyTrack;
   return "beginner" as StudyTrack;
 }
 
@@ -57,10 +66,178 @@ function normalizeStatus(raw: unknown): SessionStatus {
   return "draft" as SessionStatus;
 }
 
-async function saveSessionAction(args: { churchslug: string; sessionId: string }, formData: FormData) {
+const NIV_REQUIRED_CITATION =
+  "The Holy Bible, New International Version® NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by Permission of Biblica, Inc.® All rights reserved worldwide. To learn more, visit http://biblica.com and http://facebook.com/Biblica.";
+
+function envClean(v: string | undefined | null): string {
+  return (v || "").trim();
+}
+
+function decodeHtmlEntities(s: string): string {
+  if (!s) return "";
+  return decodeBasicEntities(s);
+}
+
+function stripHtmlToText(html: string): string {
+  let s = String(html || "");
+
+  s = s.replace(/<\s*br\s*\/?\s*>/gi, "\n");
+  s = s.replace(/<\s*hr\s*\/?\s*>/gi, "\n");
+  s = s.replace(/<\s*\/\s*(p|div|section|h1|h2|h3|h4|h5|h6|li)\s*>/gi, "\n");
+  s = s.replace(/<\s*(p|div|section|h1|h2|h3|h4|h5|h6|li)(\s+[^>]*)?>/gi, "");
+  s = s.replace(/<[^>]+>/g, "");
+  s = decodeHtmlEntities(s);
+  s = s.replace(/\r\n/g, "\n");
+  s = s.replace(/[ \t]+\n/g, "\n");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s.trim();
+}
+
+async function netFetchPlainTextAction(passage: string): Promise<string> {
+  "use server";
+
+  const clean = (passage || "").trim();
+  if (!clean) return "";
+
+  const base = envClean(process.env.API_BIBLE_BASE || "https://rest.api.bible").replace(
+    /\/+$/,
+    ""
+  );
+  const key = envClean(process.env.API_BIBLE_KEY);
+  const bibleId = envClean(process.env.API_BIBLE_DEFAULT_BIBLE_ID);
+
+  if (!key) throw new Error("API.Bible key not configured (API_BIBLE_KEY).");
+  if (!bibleId)
+    throw new Error("Default Bible ID not configured (API_BIBLE_DEFAULT_BIBLE_ID).");
+
+  const url = `${base}/v1/bibles/${encodeURIComponent(
+    bibleId
+  )}/search?query=${encodeURIComponent(clean)}&offset=0`;
+
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: {
+      "api-key": key,
+      Accept: "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`API.Bible error (${res.status})`);
+  }
+
+  const json = (await res.json()) as any;
+  const passages = json?.data?.passages;
+  const first = Array.isArray(passages) ? passages[0] : null;
+  const contentHtml = typeof first?.content === "string" ? first.content : "";
+
+  if (!contentHtml) return "";
+  const text = stripHtmlToText(contentHtml);
+  if (!text) return "";
+
+  return `${text}\n\n—\n${NIV_REQUIRED_CITATION}`;
+}
+
+async function apiBibleSearchAction(queryRaw: string): Promise<{
+  query: string;
+  total: number;
+  verses: Array<{ reference: string; text: string }>;
+  citation: string;
+}> {
+  "use server";
+
+  const query = (queryRaw || "").trim();
+  if (!query) return { query: "", total: 0, verses: [], citation: NIV_REQUIRED_CITATION };
+
+  const base = envClean(process.env.API_BIBLE_BASE || "https://rest.api.bible").replace(/\/+$/, "");
+  const key = envClean(process.env.API_BIBLE_KEY);
+  const bibleId = envClean(process.env.API_BIBLE_DEFAULT_BIBLE_ID);
+
+  if (!key) throw new Error("API.Bible key not configured (API_BIBLE_KEY).");
+  if (!bibleId)
+    throw new Error("Default Bible ID not configured (API_BIBLE_DEFAULT_BIBLE_ID).");
+
+  const url = `${base}/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(
+    query
+  )}&offset=0&limit=10`;
+
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: {
+      "api-key": key,
+      Accept: "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`API.Bible error (${res.status})`);
+  }
+
+  const json = (await res.json()) as any;
+  const rawVerses = Array.isArray(json?.data?.verses) ? json.data.verses : [];
+  const verses = rawVerses
+    .map((v: any) => ({
+      reference: String(v?.reference ?? v?.id ?? "").trim(),
+      text: stripHtmlToText(String(v?.text ?? "")).trim(),
+    }))
+    .filter((v: any) => v.reference || v.text);
+
+  const totalRaw = Number(json?.data?.total);
+  const total = Number.isFinite(totalRaw) ? totalRaw : verses.length;
+
+  return { query, total, verses, citation: NIV_REQUIRED_CITATION };
+}
+
+function decodeBasicEntities(s: string): string {
+  return (
+    s
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#(\d+);/g, (_, n) => {
+        const code = Number(n);
+        return Number.isFinite(code) ? String.fromCharCode(code) : _;
+      })
+  );
+}
+
+async function netFetchNotesAction(passage: string): Promise<string> {
+  "use server";
+
+  const clean = (passage || "").trim();
+  if (!clean) return "";
+
+  const url = `https://labs.bible.org/api/?passage=${encodeURIComponent(
+    clean
+  )}&type=text&formatting=full`;
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`NET Labs error (${res.status})`);
+  }
+
+  const xml = await res.text();
+  const noteBlocks = Array.from(xml.matchAll(/<note[^>]*>([\s\S]*?)<\/note>/gi)).map((m) =>
+    stripHtmlToText(m[1] || "")
+  );
+
+  if (!noteBlocks.length) return "No NET note blocks were returned for this passage.";
+
+  return noteBlocks.filter(Boolean).join("\n\n—\n\n");
+}
+
+async function saveSessionAction(
+  args: { churchslug: string; sessionId: string },
+  formData: FormData
+) {
   "use server";
 
   const tenant = await getTenantBySlugOrThrow(args.churchslug);
+  void tenant;
+
   const sessionId = args.sessionId;
 
   const passage = safeString(formData.get("passage")).trim();
@@ -114,39 +291,9 @@ async function saveSessionAction(args: { churchslug: string; sessionId: string }
     );
   }
 
-  redirect(`/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(sessionId)}?saved=1`);
-}
-
-async function fetchNetPlainTextAction(args: { churchslug: string }, passageRaw: string) {
-  "use server";
-
-  const tenant = await getTenantBySlugOrThrow(args.churchslug);
-  // Tenant is fetched intentionally (keeps action consistent with auth/tenant guards)
-  void tenant;
-
-  const passage = (passageRaw || "").trim();
-  if (!passage) return "";
-
-  const url = `https://labs.bible.org/api/?passage=${encodeURIComponent(passage)}&type=json&formatting=plain`;
-
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`NET API error (${res.status})`);
-
-  const data = (await res.json()) as Array<any>;
-  const verses = Array.isArray(data) ? data : [];
-
-  const lines: string[] = [];
-  for (const v of verses) {
-    const book = typeof v?.bookname === "string" ? v.bookname : "";
-    const chap = typeof v?.chapter === "string" || typeof v?.chapter === "number" ? String(v.chapter) : "";
-    const vs = typeof v?.verse === "string" || typeof v?.verse === "number" ? String(v.verse) : "";
-    const t = typeof v?.text === "string" ? v.text : "";
-
-    if (book && chap && vs) lines.push(`${book} ${chap}:${vs} ${t}`.trim());
-    else if (t) lines.push(String(t).trim());
-  }
-
-  return lines.filter(Boolean).join("\n");
+  redirect(
+    `/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(sessionId)}?saved=1`
+  );
 }
 
 function pickFirstString(v: string | string[] | undefined): string | undefined {
@@ -214,7 +361,9 @@ export default async function ChurchSessionEditorPage({
       backToStudyHref={`/${encodeURIComponent(p.churchslug)}/studies`}
       defaults={defaults}
       action={saveSessionAction.bind(null, { churchslug: p.churchslug, sessionId: p.sessionid })}
-      netFetchPlainTextAction={fetchNetPlainTextAction.bind(null, { churchslug: p.churchslug })}
+      netFetchPlainTextAction={netFetchPlainTextAction}
+      netFetchNotesAction={netFetchNotesAction}
+      apiBibleSearchAction={apiBibleSearchAction}
     />
   );
 }
