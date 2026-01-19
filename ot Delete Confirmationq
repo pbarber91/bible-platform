@@ -1,0 +1,2586 @@
+[1mdiff --git a/src/app/[churchslug]/sessions/[sessionid]/page.tsx b/src/app/[churchslug]/sessions/[sessionid]/page.tsx[m
+[1mindex 1e65d15..988c764 100644[m
+[1m--- a/src/app/[churchslug]/sessions/[sessionid]/page.tsx[m
+[1m+++ b/src/app/[churchslug]/sessions/[sessionid]/page.tsx[m
+[36m@@ -1,11 +1,8 @@[m
+ // src/app/[churchslug]/sessions/[sessionid]/page.tsx[m
+ import { redirect } from "next/navigation";[m
+ import { getTenantBySlugOrThrow } from "@/lib/tenant";[m
+[31m-import {[m
+[31m-  getSessionById,[m
+[31m-  updateSessionMeta,[m
+[31m-  hardDeleteSession,[m
+[31m-} from "@/lib/db/study_sessions";[m
+[32m+[m[32mimport { getSessionById, updateSessionMeta, hardDeleteSession } from "@/lib/db/study_sessions";[m
+[32m+[m[32mimport { ConfirmDangerAction } from "@/components/ConfirmDangerAction";[m
+ [m
+ const FIXED_LOCALE = "en-US";[m
+ const FIXED_TZ = "America/New_York";[m
+[36m@@ -30,40 +27,21 @@[m [mfunction formatDate(iso: string) {[m
+ function computeCompletionPercent(session: any): number {[m
+   const r = (session?.responses ?? {}) as Record<string, unknown>;[m
+   const track = String(session?.track ?? "beginner").toLowerCase();[m
+[31m-[m
+   const baseKeys = ["obs", "aud", "mean", "sim", "diff", "app"];[m
+[31m-  const advKeys = [[m
+[31m-    "advStructure",[m
+[31m-    "advThemes",[m
+[31m-    "advCrossRefs",[m
+[31m-    "advWordStudy",[m
+[31m-    "advCommentary",[m
+[31m-  ];[m
+[31m-[m
+[32m+[m[32m  const advKeys = ["advStructure", "advThemes", "advCrossRefs", "advWordStudy", "advCommentary"];[m
+   const keys = track === "advanced" ? [...baseKeys, ...advKeys] : baseKeys;[m
+ [m
+[31m-  const filled = keys.filter([m
+[31m-    (k) => String((r as any)?.[k] ?? "").trim().length > 0[m
+[31m-  ).length;[m
+[31m-[m
+[32m+[m[32m  const filled = keys.filter((k) => String((r as any)?.[k] ?? "").trim().length > 0).length;[m
+   const total = keys.length;[m
+   if (total === 0) return 0;[m
+[31m-[m
+   return Math.max(0, Math.min(100, Math.round((filled / total) * 100)));[m
+ }[m
+ [m
+ function firstMissingAnchor(session: any): string {[m
+   const r = (session?.responses ?? {}) as Record<string, unknown>;[m
+   const track = String(session?.track ?? "beginner").toLowerCase();[m
+[31m-[m
+   const base = ["obs", "aud", "mean", "sim", "diff", "app"];[m
+[31m-  const adv = [[m
+[31m-    "advStructure",[m
+[31m-    "advThemes",[m
+[31m-    "advCrossRefs",[m
+[31m-    "advWordStudy",[m
+[31m-    "advCommentary",[m
+[31m-  ];[m
+[32m+[m[32m  const adv = ["advStructure", "advThemes", "advCrossRefs", "advWordStudy", "advCommentary"];[m
+   const keys = track === "advanced" ? [...base, ...adv] : base;[m
+ [m
+   for (const k of keys) {[m
+[36m@@ -77,11 +55,9 @@[m [mtype CheckLevel = "pass" | "warn" | "fail" | "none";[m
+ function versePatternHit(s: string) {[m
+   return /\b\d{1,3}:\d{1,3}\b/.test(s);[m
+ }[m
+[31m-[m
+ function connectorHit(s: string) {[m
+   return /\b(because|therefore|so that|since|in light of|as a result)\b/i.test(s);[m
+ }[m
+[31m-[m
+ function quoteHit(s: string) {[m
+   return /"([^"]{8,})"/.test(s) || /“([^”]{8,})”/.test(s);[m
+ }[m
+[36m@@ -98,17 +74,14 @@[m [mfunction anchoredStatus(app: string): CheckLevel {[m
+ function measurableStatus(app: string): CheckLevel {[m
+   const a = (app ?? "").trim();[m
+   if (!a) return "none";[m
+[31m-[m
+   const timeMarker =[m
+     /\b(today|tonight|tomorrow|this week|this month|by\b|before\b|daily\b|weekly\b|on (mon|tue|wed|thu|thur|fri|sat|sun)\b|\b\d+\s?(min|mins|minute|minutes|day|days|week|weeks)\b)/i.test([m
+       a[m
+     );[m
+[31m-[m
+   const concreteVerb =[m
+     /\b(call|text|talk|apologize|forgive|pray|read|memorize|journal|fast|serve|share|confess|meet|invite|encourage|give|write|listen|visit)\b/i.test([m
+       a[m
+     );[m
+[31m-[m
+   if (timeMarker && concreteVerb) return "pass";[m
+   if (timeMarker || concreteVerb) return "warn";[m
+   return "fail";[m
+[36m@@ -117,26 +90,18 @@[m [mfunction measurableStatus(app: string): CheckLevel {[m
+ function godCenteredStatus(app: string): CheckLevel {[m
+   const a = (app ?? "").trim();[m
+   if (!a) return "none";[m
+[31m-[m
+[31m-  const godWords =[m
+[31m-    /\b(God|Jesus|Christ|Spirit|Holy Spirit|grace|gospel|prayer|obedience|faith)\b/i.test(a);[m
+[31m-  const postureWords =[m
+[31m-    /\b(repenten|repent|humble|humility|forgive|forgiveness|serve|worship)\b/i.test(a);[m
+[31m-[m
+[32m+[m[32m  const godWords = /\b(God|Jesus|Christ|Spirit|Holy Spirit|grace|gospel|prayer|obedience|faith)\b/i.test(a);[m
+[32m+[m[32m  const postureWords = /\b(repenten|repent|humble|humility|forgive|forgiveness|serve|worship)\b/i.test(a);[m
+   const explicitlySelfOnly = /\b(manifest|be a better person)\b/i.test(a);[m
+[31m-[m
+   if (explicitlySelfOnly) return "fail";[m
+   if (godWords || postureWords) return "pass";[m
+   return "warn";[m
+ }[m
+ [m
+ function checkBadge(level: CheckLevel) {[m
+[31m-  if (level === "pass")[m
+[31m-    return { emoji: "✅", cls: "border-emerald-200 bg-emerald-50 text-emerald-900" };[m
+[31m-  if (level === "warn")[m
+[31m-    return { emoji: "🟡", cls: "border-amber-200 bg-amber-50 text-amber-900" };[m
+[31m-  if (level === "fail")[m
+[31m-    return { emoji: "🔴", cls: "border-rose-200 bg-rose-50 text-rose-900" };[m
+[32m+[m[32m  if (level === "pass") return { emoji: "✅", cls: "border-emerald-200 bg-emerald-50 text-emerald-900" };[m
+[32m+[m[32m  if (level === "warn") return { emoji: "⚠️", cls: "border-amber-200 bg-amber-50 text-amber-900" };[m
+[32m+[m[32m  if (level === "fail") return { emoji: "⛔", cls: "border-rose-200 bg-rose-50 text-rose-900" };[m
+   return { emoji: "•", cls: "border-slate-200 bg-slate-50 text-slate-700" };[m
+ }[m
+ [m
+[36m@@ -145,14 +110,12 @@[m [mfunction buildShareText(metaLine: string, sections: Array<{ label: string; value[m
+   lines.push("Session Summary");[m
+   lines.push(metaLine);[m
+   lines.push("");[m
+[31m-[m
+   for (const s of sections) {[m
+     if (!String(s.value ?? "").trim()) continue;[m
+     lines.push(`${s.label}:`);[m
+     lines.push(String(s.value ?? "").trim());[m
+     lines.push("");[m
+   }[m
+[31m-[m
+   return lines.join("\n");[m
+ }[m
+ [m
+[36m@@ -162,15 +125,12 @@[m [masync function deleteSessionAction(args: { churchslug: string; sessionId: string[m
+   const session = await getSessionById(tenant.id, args.sessionId);[m
+   if (!session) throw new Error("Session not found.");[m
+   await hardDeleteSession({ workspaceId: tenant.id, sessionId: args.sessionId });[m
+[31m-  redirect([m
+[31m-    `/${encodeURIComponent(args.churchslug)}/studies/${encodeURIComponent(session.plan_id)}`[m
+[31m-  );[m
+[32m+[m[32m  redirect(`/${encodeURIComponent(args.churchslug)}/studies/${encodeURIComponent(session.plan_id)}`);[m
+ }[m
+ [m
+ async function markCompleteAction(args: { churchslug: string; sessionId: string }) {[m
+   "use server";[m
+   const tenant = await getTenantBySlugOrThrow(args.churchslug);[m
+[31m-[m
+   const session = await getSessionById(tenant.id, args.sessionId);[m
+   if (!session) throw new Error("Session not found.");[m
+ [m
+[36m@@ -185,9 +145,7 @@[m [masync function markCompleteAction(args: { churchslug: string; sessionId: string[m
+     status: "complete",[m
+   });[m
+ [m
+[31m-  redirect([m
+[31m-    `/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(args.sessionId)}?done=1`[m
+[31m-  );[m
+[32m+[m[32m  redirect(`/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(args.sessionId)}?done=1`);[m
+ }[m
+ [m
+ export default async function ChurchSessionViewerPage({[m
+[36m@@ -195,7 +153,7 @@[m [mexport default async function ChurchSessionViewerPage({[m
+   searchParams,[m
+ }: {[m
+   params: Promise<{ churchslug: string; sessionid: string }>;[m
+[31m-  searchParams?: Promise<Record<string, string | undefined>>;[m
+[32m+[m[32m  searchParams?: Promise<Record<string, string | string[] | undefined>>;[m
+ }) {[m
+   const p = await params;[m
+   const sp = (await searchParams) ?? {};[m
+[36m@@ -206,11 +164,11 @@[m [mexport default async function ChurchSessionViewerPage({[m
+ [m
+   if (!session) {[m
+     return ([m
+[31m-      <div className="mx-auto max-w-3xl px-4 py-10">[m
+[31m-        <div className="text-sm font-semibold text-slate-700">Bible Study</div>[m
+[31m-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">[m
+[31m-          Session not found.[m
+[31m-        </h1>[m
+[32m+[m[32m      <div className="mx-auto max-w-3xl px-4 py-8">[m
+[32m+[m[32m        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m          <div className="text-sm font-semibold text-slate-700">Bible Study</div>[m
+[32m+[m[32m          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Session not found.</h1>[m
+[32m+[m[32m        </div>[m
+       </div>[m
+     );[m
+   }[m
+[36m@@ -218,292 +176,257 @@[m [mexport default async function ChurchSessionViewerPage({[m
+   const percent = computeCompletionPercent(session);[m
+   const anchor = firstMissingAnchor(session);[m
+ [m
+[31m-  return ([m
+[31m-    <div id="top" className="mx-auto max-w-3xl px-4 pb-16 pt-8">[m
+[31m-      <div className="text-sm font-semibold text-slate-700">[m
+[31m-        Bible Study • {tenant.name}[m
+[31m-      </div>[m
+[32m+[m[32m  const r = (session.responses ?? {}) as Record<string, unknown>;[m
+[32m+[m[32m  const track = String(session.track ?? "beginner");[m
+[32m+[m[32m  const mode = String(session.mode ?? "guided");[m
+[32m+[m[32m  const genre = String(session.genre ?? "Unknown");[m
+[32m+[m[32m  const metaLine = `Track: ${track} • Mode: ${mode} • Genre: ${genre === "Unknown" ? "General" : genre}`;[m
+[32m+[m
+[32m+[m[32m  const pageTitle = session.passage ? String(session.passage) : "Study session";[m
+[32m+[m[32m  const contextLabel = `Bible Study • ${tenant.name}`;[m
+[32m+[m[32m  const dateLabel = formatDate(session.session_date);[m
+[32m+[m
+[32m+[m[32m  const sectionDefs: Array<{ key: string; label: string }> = [[m
+[32m+[m[32m    { key: "obs", label: "Observations" },[m
+[32m+[m[32m    { key: "aud", label: "Original audience" },[m
+[32m+[m[32m    { key: "mean", label: "Meaning (then)" },[m
+[32m+[m[32m    { key: "sim", label: "Similarities (bridge)" },[m
+[32m+[m[32m    { key: "diff", label: "Differences (guardrails)" },[m
+[32m+[m[32m    { key: "app", label: "Application / response" },[m
+[32m+[m[32m  ];[m
+ [m
+[31m-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">[m
+[31m-        {session.passage ? session.passage : "Study session"}[m
+[31m-      </h1>[m
+[31m-[m
+[31m-      <div className="mt-3 flex flex-wrap items-center gap-3">[m
+[31m-        <a[m
+[31m-          href={`/${encodeURIComponent(p.churchslug)}/studies/${encodeURIComponent(session.plan_id)}`}[m
+[31m-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-        >[m
+[31m-          Back to study[m
+[31m-        </a>[m
+[31m-[m
+[31m-        <a[m
+[31m-          href={anchor}[m
+[31m-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-        >[m
+[31m-          Resume[m
+[31m-        </a>[m
+[31m-[m
+[31m-        <a[m
+[31m-          href={`/${encodeURIComponent(p.churchslug)}/sessions/${encodeURIComponent(session.id)}/edit`}[m
+[31m-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-        >[m
+[31m-          Open editor[m
+[31m-        </a>[m
+[31m-[m
+[31m-        <form[m
+[31m-          action={deleteSessionAction.bind(null, {[m
+[31m-            churchslug: p.churchslug,[m
+[31m-            sessionId: session.id,[m
+[31m-          })}[m
+[31m-        >[m
+[31m-          <button[m
+[31m-            type="submit"[m
+[31m-            className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 hover:bg-rose-100"[m
+[31m-          >[m
+[31m-            Delete[m
+[31m-          </button>[m
+[31m-        </form>[m
+[31m-      </div>[m
+[32m+[m[32m  const advDefs: Array<{ key: string; label: string }> = [[m
+[32m+[m[32m    { key: "advStructure", label: "Advanced — Structure / flow" },[m
+[32m+[m[32m    { key: "advThemes", label: "Advanced — Themes" },[m
+[32m+[m[32m    { key: "advCrossRefs", label: "Advanced — Cross references" },[m
+[32m+[m[32m    { key: "advWordStudy", label: "Advanced — Word study" },[m
+[32m+[m[32m    { key: "advCommentary", label: "Advanced — Commentary / questions" },[m
+[32m+[m[32m  ];[m
+ [m
+[31m-      <div className="mt-4 text-sm text-slate-600">{formatDate(session.session_date)}</div>[m
+[32m+[m[32m  const sections: Array<{ label: string; value: string }> = [];[m
+[32m+[m[32m  const passageText = String((r as any)?.passageText ?? "");[m
+[32m+[m[32m  if (passageText.trim()) sections.push({ label: "Passage text (pasted)", value: passageText });[m
+ [m
+[31m-      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">[m
+[31m-        <div>[m
+[31m-          Status: <span className="font-semibold text-slate-800">{session.status ?? "draft"}</span>[m
+[31m-        </div>[m
+[31m-        <div>•</div>[m
+[31m-        <div>[m
+[31m-          Completion: <span className="font-semibold text-slate-800">{percent}%</span>[m
+[31m-        </div>[m
+[31m-      </div>[m
+[32m+[m[32m  for (const s of sectionDefs) {[m
+[32m+[m[32m    const v = String((r as any)?.[s.key] ?? "");[m
+[32m+[m[32m    if (v.trim()) sections.push({ label: s.label, value: v });[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  if (String(session.track ?? "").toLowerCase() === "advanced") {[m
+[32m+[m[32m    for (const s of advDefs) {[m
+[32m+[m[32m      const v = String((r as any)?.[s.key] ?? "");[m
+[32m+[m[32m      if (v.trim()) sections.push({ label: s.label, value: v });[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  const notes = String((r as any)?.notes ?? "");[m
+[32m+[m[32m  if (notes.trim()) sections.push({ label: "Notes", value: notes });[m
+[32m+[m
+[32m+[m[32m  const app = String((r as any)?.app ?? "");[m
+[32m+[m[32m  const a = anchoredStatus(app);[m
+[32m+[m[32m  const m2 = measurableStatus(app);[m
+[32m+[m[32m  const g = godCenteredStatus(app);[m
+ [m
+[31m-      {done ? ([m
+[31m-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">[m
+[31m-          Marked complete.[m
+[32m+[m[32m  const shareText = buildShareText([m
+[32m+[m[32m    `${contextLabel} • ${pageTitle} • ${dateLabel} • ${metaLine} • Completion: ${percent}%`,[m
+[32m+[m[32m    sections[m
+[32m+[m[32m  );[m
+[32m+[m
+[32m+[m[32m  const backToStudyHref = `/${encodeURIComponent(p.churchslug)}/studies/${encodeURIComponent(session.plan_id)}`;[m
+[32m+[m[32m  const resumeHref = `${backToStudyHref}${anchor}`;[m
+[32m+[m[32m  const editorHref = `/${encodeURIComponent(p.churchslug)}/sessions/${encodeURIComponent(p.sessionid)}/edit`;[m
+[32m+[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <div id="top" className="mx-auto max-w-3xl px-4 py-8">[m
+[32m+[m[32m      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <div className="text-sm font-semibold text-slate-700">{contextLabel}</div>[m
+[32m+[m[32m            <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">{pageTitle}</h1>[m
+[32m+[m[32m            <div className="mt-2 text-sm text-slate-600">{dateLabel}</div>[m
+[32m+[m[32m            <div className="mt-1 text-sm text-slate-600">[m
+[32m+[m[32m              Status: <span className="font-semibold text-slate-900">{session.status ?? "draft"}</span> • Completion:{" "}[m
+[32m+[m[32m              <span className="font-semibold text-slate-900">{percent}%</span>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="flex flex-wrap items-center gap-2">[m
+[32m+[m[32m            <a[m
+[32m+[m[32m              href={backToStudyHref}[m
+[32m+[m[32m              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Back to study[m
+[32m+[m[32m            </a>[m
+[32m+[m[32m            <a[m
+[32m+[m[32m              href={resumeHref}[m
+[32m+[m[32m              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Resume[m
+[32m+[m[32m            </a>[m
+[32m+[m[32m            <a[m
+[32m+[m[32m              href={editorHref}[m
+[32m+[m[32m              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Open editor[m
+[32m+[m[32m            </a>[m
+[32m+[m
+[32m+[m[32m            <ConfirmDangerAction[m
+[32m+[m[32m              buttonLabel="Delete"[m
+[32m+[m[32m              title="Delete this session?"[m
+[32m+[m[32m              message="This will permanently delete this session and all of its responses."[m
+[32m+[m[32m              dangerHint="This cannot be undone."[m
+[32m+[m[32m              action={deleteSessionAction.bind(null, { churchslug: p.churchslug, sessionId: p.sessionid })}[m
+[32m+[m[32m            />[m
+[32m+[m[32m          </div>[m
+         </div>[m
+[31m-      ) : null}[m
+[31m-[m
+[31m-      {(() => {[m
+[31m-        const r = (session.responses ?? {}) as Record<string, unknown>;[m
+[31m-        const track = String(session.track ?? "beginner");[m
+[31m-        const mode = String(session.mode ?? "guided");[m
+[31m-        const genre = String(session.genre ?? "Unknown");[m
+[31m-        const metaLine = `Track: ${track} • Mode: ${mode} • Genre: ${genre === "Unknown" ? "General" : genre}`;[m
+[31m-[m
+[31m-        const pageTitle = session.passage ? String(session.passage) : "Study session";[m
+[31m-        const contextLabel = `Bible Study • ${tenant.name}`;[m
+[31m-        const dateLabel = formatDate(session.session_date);[m
+[31m-[m
+[31m-        const sectionDefs: Array<{ key: string; label: string }> = [[m
+[31m-          { key: "obs", label: "Observations" },[m
+[31m-          { key: "aud", label: "Original audience" },[m
+[31m-          { key: "mean", label: "Meaning (then)" },[m
+[31m-          { key: "sim", label: "Similarities (bridge)" },[m
+[31m-          { key: "diff", label: "Differences (guardrails)" },[m
+[31m-          { key: "app", label: "Application / response" },[m
+[31m-        ];[m
+[31m-[m
+[31m-        const advDefs: Array<{ key: string; label: string }> = [[m
+[31m-          { key: "advStructure", label: "Advanced — Structure / flow" },[m
+[31m-          { key: "advThemes", label: "Advanced — Themes" },[m
+[31m-          { key: "advCrossRefs", label: "Advanced — Word study" },[m
+[31m-          { key: "advWordStudy", label: "Advanced — Word study" },[m
+[31m-          { key: "advCommentary", label: "Advanced — Commentary / questions" },[m
+[31m-        ];[m
+[31m-[m
+[31m-        const sections: Array<{ label: string; value: string }> = [];[m
+[31m-[m
+[31m-        const passageText = String((r as any)?.passageText ?? "");[m
+[31m-        if (passageText.trim()) sections.push({ label: "Passage text (pasted)", value: passageText });[m
+[31m-[m
+[31m-        for (const s of sectionDefs) {[m
+[31m-          const v = String((r as any)?.[s.key] ?? "");[m
+[31m-          if (v.trim()) sections.push({ label: s.label, value: v });[m
+[31m-        }[m
+[31m-[m
+[31m-        if (String(session.track ?? "").toLowerCase() === "advanced") {[m
+[31m-          for (const s of advDefs) {[m
+[31m-            const v = String((r as any)?.[s.key] ?? "");[m
+[31m-            if (v.trim()) sections.push({ label: s.label, value: v });[m
+[31m-          }[m
+[31m-        }[m
+[31m-[m
+[31m-        const notes = String((r as any)?.notes ?? "");[m
+[31m-        if (notes.trim()) sections.push({ label: "Notes", value: notes });[m
+[31m-[m
+[31m-        const app = String((r as any)?.app ?? "");[m
+[31m-        const a = anchoredStatus(app);[m
+[31m-        const m2 = measurableStatus(app);[m
+[31m-        const g = godCenteredStatus(app);[m
+[31m-[m
+[31m-        const shareText = buildShareText([m
+[31m-          `${contextLabel} • ${pageTitle} • ${dateLabel} • ${metaLine} • Completion: ${percent}%`,[m
+[31m-          sections[m
+[31m-        );[m
+[31m-[m
+[31m-        return ([m
+[31m-          <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[31m-            <div className="flex flex-wrap items-start justify-between gap-4">[m
+[31m-              <div>[m
+[31m-                <div className="text-sm font-semibold">Session summary</div>[m
+[31m-                <div className="mt-1 text-sm text-slate-600">[m
+[31m-                  A printable/shareable summary of your session (no AI — just what you wrote).[m
+[31m-                </div>[m
+[31m-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">[m
+[31m-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-700">[m
+[31m-                    {metaLine}[m
+[31m-                  </span>[m
+[31m-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-700">[m
+[31m-                    Completion: {percent}%[m
+[31m-                  </span>[m
+[31m-                </div>[m
+[31m-              </div>[m
+ [m
+[31m-              <div className="flex flex-wrap gap-2">[m
+[31m-                <button[m
+[31m-                  type="button"[m
+[31m-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-                  data-bsh-action="copy"[m
+[31m-                  data-bsh-text={JSON.stringify(shareText)}[m
+[31m-                >[m
+[31m-                  Copy summary[m
+[31m-                </button>[m
+[31m-                <button[m
+[31m-                  type="button"[m
+[31m-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-                  data-bsh-action="share"[m
+[31m-                  data-bsh-text={JSON.stringify(shareText)}[m
+[31m-                  data-bsh-title={JSON.stringify(pageTitle)}[m
+[31m-                >[m
+[31m-                  Share[m
+[31m-                </button>[m
+[32m+[m[32m        {done ? ([m
+[32m+[m[32m          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">[m
+[32m+[m[32m            Marked complete.[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        ) : null}[m
+[32m+[m
+[32m+[m[32m        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">[m
+[32m+[m[32m          <div className="text-sm font-semibold text-slate-900">Session summary</div>[m
+[32m+[m[32m          <div className="mt-1 text-sm text-slate-600">[m
+[32m+[m[32m            A printable/shareable summary of your session (no AI — just what you wrote).[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="mt-3 text-sm text-slate-700">[m
+[32m+[m[32m            {metaLine} <span className="text-slate-400">•</span> Completion: {percent}%[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="mt-4 flex flex-wrap gap-2">[m
+[32m+[m[32m            <button[m
+[32m+[m[32m              type="button"[m
+[32m+[m[32m              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m              onClick={() => {[m
+[32m+[m[32m                try {[m
+[32m+[m[32m                  navigator.clipboard.writeText(shareText);[m
+[32m+[m[32m                } catch {[m
+[32m+[m[32m                  // ignore[m
+[32m+[m[32m                }[m
+[32m+[m[32m              }}[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Copy summary[m
+[32m+[m[32m            </button>[m
+[32m+[m
+[32m+[m[32m            <button[m
+[32m+[m[32m              type="button"[m
+[32m+[m[32m              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m              onClick={() => {[m
+[32m+[m[32m                try {[m
+[32m+[m[32m                  if (navigator.share) {[m
+[32m+[m[32m                    navigator.share({ title: "Session Summary", text: shareText });[m
+[32m+[m[32m                  } else {[m
+[32m+[m[32m                    navigator.clipboard.writeText(shareText);[m
+[32m+[m[32m                  }[m
+[32m+[m[32m                } catch {[m
+[32m+[m[32m                  // ignore[m
+[32m+[m[32m                }[m
+[32m+[m[32m              }}[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Share[m
+[32m+[m[32m            </button>[m
+[32m+[m
+[32m+[m[32m            <button[m
+[32m+[m[32m              type="button"[m
+[32m+[m[32m              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m              onClick={() => window.print()}[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Export (Print/PDF)[m
+[32m+[m[32m            </button>[m
+[32m+[m
+[32m+[m[32m            {session.status !== "complete" ? ([m
+[32m+[m[32m              <form action={markCompleteAction.bind(null, { churchslug: p.churchslug, sessionId: p.sessionid })}>[m
+                 <button[m
+[31m-                  type="button"[m
+[31m-                  className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:opacity-90"[m
+[31m-                  data-bsh-action="print"[m
+[31m-                  data-bsh-title={JSON.stringify(pageTitle)}[m
+[31m-                  data-bsh-context={JSON.stringify(contextLabel)}[m
+[31m-                  data-bsh-date={JSON.stringify(dateLabel)}[m
+[31m-                  data-bsh-percent={JSON.stringify(String(percent))}[m
+[31m-                  data-bsh-meta={JSON.stringify(metaLine)}[m
+[31m-                  data-bsh-sections={JSON.stringify(sections)}[m
+[32m+[m[32m                  type="submit"[m
+[32m+[m[32m                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"[m
+                 >[m
+[31m-                  Export (Print/PDF)[m
+[32m+[m[32m                  Mark complete[m
+                 </button>[m
+[31m-              </div>[m
+[31m-            </div>[m
+[31m-[m
+[31m-            <div className="mt-6 space-y-4">[m
+[31m-              {sections.length ? ([m
+[31m-                sections.map((s) => ([m
+[31m-                  <section[m
+[31m-                    key={s.label}[m
+[31m-                    className="rounded-2xl border border-slate-200 bg-white p-4"[m
+[31m-                  >[m
+[31m-                    <div className="text-sm font-semibold text-slate-900">{s.label}</div>[m
+[31m-                    <div className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{s.value}</div>[m
+[31m-                  </section>[m
+[31m-                ))[m
+[31m-              ) : ([m
+[31m-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">[m
+[31m-                  No content yet — jump back to the editor to add observations and application.[m
+[32m+[m[32m              </form>[m
+[32m+[m[32m            ) : null}[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">[m
+[32m+[m[32m            {(() => {[m
+[32m+[m[32m              const b = checkBadge(a);[m
+[32m+[m[32m              return ([m
+[32m+[m[32m                <div className={`rounded-2xl border px-4 py-3 text-sm ${b.cls}`}>[m
+[32m+[m[32m                  <div className="font-semibold">[m
+[32m+[m[32m                    {b.emoji} Anchored to the text[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                  <div className="mt-1 text-xs">[m
+[32m+[m[32m                    {a === "pass"[m
+[32m+[m[32m                      ? "Looks anchored."[m
+[32m+[m[32m                      : a === "warn"[m
+[32m+[m[32m                      ? "Consider adding a verse reference or a “because/therefore” connection."[m
+[32m+[m[32m                      : a === "fail"[m
+[32m+[m[32m                      ? "This reads unanchored — tie it to an observation or verse."[m
+[32m+[m[32m                      : "No application written yet."}[m
+[32m+[m[32m                  </div>[m
+                 </div>[m
+[31m-              )}[m
+[31m-            </div>[m
+[31m-[m
+[31m-            <script[m
+[31m-              suppressHydrationWarning[m
+[31m-              dangerouslySetInnerHTML={{[m
+[31m-                __html: `(function(){[m
+[31m-  function decodeJSON(s){ try { return JSON.parse(s); } catch(e){ return s || ""; } }[m
+[31m-  async function copyText(t){[m
+[31m-    try{ if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(t); return true; } }catch(e){}[m
+[31m-    try{[m
+[31m-      var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0';[m
+[31m-      document.body.appendChild(ta); ta.focus(); ta.select();[m
+[31m-      var ok=document.execCommand('copy'); document.body.removeChild(ta); return ok;[m
+[31m-    }catch(e){ return false; }[m
+[31m-  }[m
+[31m-  function esc(s){ return String(s||"").replace(/[&<>"]/g,function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]);}); }[m
+[31m-  function renderPrintHtml(contextLabel, title, date, percent, meta, sections){[m
+[31m-    var html = [];[m
+[31m-    html.push('<!doctype html><html><head><meta charset="utf-8" />');[m
+[31m-    html.push('<title>'+esc(title)+'</title>');[m
+[31m-    html.push('<style>body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; margin:32px; color:#0f172a;} h1{margin:0; font-size:22px;} .kicker{color:#475569; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.06em;} .hdr{border:1px solid #e2e8f0; border-radius:14px; padding:14px; margin:0 0 16px;} .meta{color:#475569; margin-top:8px; font-size:12px;} .meta b{color:#0f172a;} .card{border:1px solid #e2e8f0; border-radius:14px; padding:14px; margin:12px 0;} .h{font-weight:700; margin-bottom:8px; font-size:13px;} .t{white-space:pre-wrap; font-size:13px; color:#334155;} @media print{ body{margin:18mm;} }</style>');[m
+[31m-    html.push('</head><body>');[m
+[31m-    html.push('<div class="hdr">');[m
+[31m-    html.push('<div class="kicker">'+esc(contextLabel)+'</div>');[m
+[31m-    html.push('<h1>'+esc(title)+'</h1>');[m
+[31m-    html.push('<div class="meta"><b>Date:</b> '+esc(date)+' &nbsp; • &nbsp; <b>Completion:</b> '+esc(percent)+'%<br />'+esc(meta)+'</div>');[m
+[31m-    html.push('</div>');[m
+[31m-    (sections||[]).forEach(function(s){[m
+[31m-      html.push('<div class="card"><div class="h">'+esc(s.label)+'</div><div class="t">'+esc(s.value)+'</div></div>');[m
+[31m-    });[m
+[31m-    html.push('</body></html>');[m
+[31m-    return html.join('');[m
+[31m-  }[m
+[31m-  document.addEventListener('click', async function(e){[m
+[31m-    var btn = e.target && e.target.closest ? e.target.closest('[data-bsh-action]') : null;[m
+[31m-    if(!btn) return;[m
+[31m-    var action = btn.getAttribute('data-bsh-action');[m
+[31m-    if(action==='copy' || action==='share'){[m
+[31m-      var text = decodeJSON(btn.getAttribute('data-bsh-text')||"");[m
+[31m-      if(action==='share' && navigator.share){[m
+[31m-        try{[m
+[31m-          var title = decodeJSON(btn.getAttribute('data-bsh-title')||"Session Summary");[m
+[31m-          await navigator.share({ title: title, text: text });[m
+[31m-          return;[m
+[31m-        }catch(err){}[m
+[31m-      }[m
+[31m-      var ok = await copyText(String(text||""));[m
+[31m-      if(ok){[m
+[31m-        btn.textContent = action==='copy' ? 'Copied' : 'Copied (share not supported)';[m
+[31m-        setTimeout(function(){ btn.textContent = action==='copy' ? 'Copy summary' : 'Share'; }, 1600);[m
+[31m-      }[m
+[31m-      return;[m
+[31m-    }[m
+[31m-    if(action==='print'){[m
+[31m-      var title = decodeJSON(btn.getAttribute('data-bsh-title')||"Study session");[m
+[31m-      var contextLabel = decodeJSON(btn.getAttribute('data-bsh-context')||"Bible Study");[m
+[31m-      var date = decodeJSON(btn.getAttribute('data-bsh-date')||"");[m
+[31m-      var percent = decodeJSON(btn.getAttribute('data-bsh-percent')||"0");[m
+[31m-      var meta = decodeJSON(btn.getAttribute('data-bsh-meta')||"");[m
+[31m-      var sections = decodeJSON(btn.getAttribute('data-bsh-sections')||"[]");[m
+[31m-      try{[m
+[31m-        var w = window.open('', '_blank');[m
+[31m-        if(!w) return;[m
+[31m-        w.document.open();[m
+[31m-        w.document.write(renderPrintHtml(contextLabel, title, date, percent, meta, sections));[m
+[31m-        w.document.close();[m
+[31m-        w.focus();[m
+[31m-        setTimeout(function(){ w.print(); }, 250);[m
+[31m-      }catch(err){}[m
+[31m-    }[m
+[31m-  }, true);[m
+[31m-})();`,[m
+[31m-              }}[m
+[31m-            />[m
+[31m-          </section>[m
+[31m-        );[m
+[31m-      })()}[m
+[31m-[m
+[31m-      <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="text-sm font-semibold">Mark complete</div>[m
+[31m-        <form[m
+[31m-          action={markCompleteAction.bind(null, {[m
+[31m-            churchslug: p.churchslug,[m
+[31m-            sessionId: session.id,[m
+[31m-          })}[m
+[31m-          className="mt-3"[m
+[31m-        >[m
+[31m-          <button[m
+[31m-            type="submit"[m
+[31m-            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"[m
+[31m-          >[m
+[31m-            Mark complete[m
+[31m-          </button>[m
+[31m-        </form>[m
+[31m-      </section>[m
+[32m+[m[32m              );[m
+[32m+[m[32m            })()}[m
+[32m+[m
+[32m+[m[32m            {(() => {[m
+[32m+[m[32m              const b = checkBadge(m2);[m
+[32m+[m[32m              return ([m
+[32m+[m[32m                <div className={`rounded-2xl border px-4 py-3 text-sm ${b.cls}`}>[m
+[32m+[m[32m                  <div className="font-semibold">[m
+[32m+[m[32m                    {b.emoji} Specific + measurable[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                  <div className="mt-1 text-xs">[m
+[32m+[m[32m                    {m2 === "pass"[m
+[32m+[m[32m                      ? "Clear action + timeframe."[m
+[32m+[m[32m                      : m2 === "warn"[m
+[32m+[m[32m                      ? "Add a timeframe or concrete action (who/what/when)."[m
+[32m+[m[32m                      : m2 === "fail"[m
+[32m+[m[32m                      ? "This is vague — consider rewriting with a template."[m
+[32m+[m[32m                      : "No application written yet."}[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m              );[m
+[32m+[m[32m            })()}[m
+[32m+[m
+[32m+[m[32m            {(() => {[m
+[32m+[m[32m              const b = checkBadge(g);[m
+[32m+[m[32m              return ([m
+[32m+[m[32m                <div className={`rounded-2xl border px-4 py-3 text-sm ${b.cls}`}>[m
+[32m+[m[32m                  <div className="font-semibold">[m
+[32m+[m[32m                    {b.emoji} God-centered motive[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                  <div className="mt-1 text-xs">[m
+[32m+[m[32m                    {g === "pass"[m
+[32m+[m[32m                      ? "Reads God-centered."[m
+[32m+[m[32m                      : g === "warn"[m
+[32m+[m[32m                      ? "Consider adding motive: “because God…” “in response to…”"[m
+[32m+[m[32m                      : g === "fail"[m
+[32m+[m[32m                      ? "This reads self-centered — reframe as response to what God has done/said."[m
+[32m+[m[32m                      : "No application written yet."}[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m              );[m
+[32m+[m[32m            })()}[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="mt-5 space-y-4">[m
+[32m+[m[32m            {sections.length ? ([m
+[32m+[m[32m              sections.map((s) => ([m
+[32m+[m[32m                <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-4">[m
+[32m+[m[32m                  <div className="text-sm font-semibold text-slate-900">{s.label}</div>[m
+[32m+[m[32m                  <div className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{s.value}</div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m              ))[m
+[32m+[m[32m            ) : ([m
+[32m+[m[32m              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">[m
+[32m+[m[32m                No content yet — jump back to the editor to add observations and application.[m
+[32m+[m[32m              </div>[m
+[32m+[m[32m            )}[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      </div>[m
+     </div>[m
+   );[m
+ }[m
+[1mdiff --git a/src/app/[churchslug]/studies/[planid]/page.tsx b/src/app/[churchslug]/studies/[planid]/page.tsx[m
+[1mindex 4bece73..e78bb69 100644[m
+[1m--- a/src/app/[churchslug]/studies/[planid]/page.tsx[m
+[1m+++ b/src/app/[churchslug]/studies/[planid]/page.tsx[m
+[36m@@ -2,16 +2,10 @@[m
+ import { redirect } from "next/navigation";[m
+ import { getTenantBySlugOrThrow } from "@/lib/tenant";[m
+ import { getStudyById, hardDeleteStudy } from "@/lib/db/studies";[m
+[31m-import {[m
+[31m-  listSessionsForPlan,[m
+[31m-  createSession,[m
+[31m-  hardDeleteSession,[m
+[31m-} from "@/lib/db/study_sessions";[m
+[32m+[m[32mimport { listSessionsForPlan, createSession, hardDeleteSession } from "@/lib/db/study_sessions";[m
+[32m+[m[32mimport { ConfirmDangerAction } from "@/components/ConfirmDangerAction";[m
+ [m
+[31m-async function newSessionAction([m
+[31m-  args: { churchslug: string; planId: string },[m
+[31m-  formData: FormData[m
+[31m-) {[m
+[32m+[m[32masync function newSessionAction(args: { churchslug: string; planId: string }, formData: FormData) {[m
+   "use server";[m
+   const tenant = await getTenantBySlugOrThrow(args.churchslug);[m
+ [m
+[36m@@ -26,14 +20,9 @@[m [masync function newSessionAction([m
+     passage: passage ? passage : null,[m
+     track,[m
+     mode,[m
+[31m-    // genre is handled inside the session editor (stored NOT NULL as "Unknown"/etc)[m
+   });[m
+ [m
+[31m-  redirect([m
+[31m-    `/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent([m
+[31m-      sessionId[m
+[31m-    )}`[m
+[31m-  );[m
+[32m+[m[32m  redirect(`/${encodeURIComponent(args.churchslug)}/sessions/${encodeURIComponent(sessionId)}`);[m
+ }[m
+ [m
+ async function deleteStudyAction(args: { churchslug: string; planId: string }) {[m
+[36m@@ -43,28 +32,16 @@[m [masync function deleteStudyAction(args: { churchslug: string; planId: string }) {[m
+   redirect(`/${encodeURIComponent(args.churchslug)}/studies`);[m
+ }[m
+ [m
+[31m-async function deleteSessionAction(args: {[m
+[31m-  churchslug: string;[m
+[31m-  planId: string;[m
+[31m-  sessionId: string;[m
+[31m-}) {[m
+[32m+[m[32masync function deleteSessionAction(args: { churchslug: string; planId: string; sessionId: string }) {[m
+   "use server";[m
+   const tenant = await getTenantBySlugOrThrow(args.churchslug);[m
+   await hardDeleteSession({ workspaceId: tenant.id, sessionId: args.sessionId });[m
+[31m-  redirect([m
+[31m-    `/${encodeURIComponent(args.churchslug)}/studies/${encodeURIComponent([m
+[31m-      args.planId[m
+[31m-    )}`[m
+[31m-  );[m
+[32m+[m[32m  redirect(`/${encodeURIComponent(args.churchslug)}/studies/${encodeURIComponent(args.planId)}`);[m
+ }[m
+ [m
+ function formatDate(iso: string) {[m
+   try {[m
+[31m-    return new Date(iso).toLocaleDateString(undefined, {[m
+[31m-      year: "numeric",[m
+[31m-      month: "short",[m
+[31m-      day: "numeric",[m
+[31m-    });[m
+[32m+[m[32m    return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });[m
+   } catch {[m
+     return iso;[m
+   }[m
+[36m@@ -81,13 +58,11 @@[m [mexport default async function ChurchStudyDetailPage({[m
+ [m
+   if (!study) {[m
+     return ([m
+[31m-      <div className="grid gap-6">[m
+[31m-        <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">[m
+[31m-          <div className="text-xs text-slate-500">Bible Study</div>[m
+[31m-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">[m
+[31m-            Study not found.[m
+[31m-          </h1>[m
+[31m-        </section>[m
+[32m+[m[32m      <div className="mx-auto max-w-3xl px-4 py-8">[m
+[32m+[m[32m        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m          <div className="text-sm font-semibold text-slate-700">Bible Study</div>[m
+[32m+[m[32m          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Study not found.</h1>[m
+[32m+[m[32m        </div>[m
+       </div>[m
+     );[m
+   }[m
+[36m@@ -95,175 +70,133 @@[m [mexport default async function ChurchStudyDetailPage({[m
+   const sessions = await listSessionsForPlan(tenant.id, study.id);[m
+ [m
+   return ([m
+[31m-    <div className="grid gap-6">[m
+[31m-      <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="text-xs text-slate-500">Bible Study • {tenant.name}</div>[m
+[31m-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">[m
+[31m-          <h1 className="text-2xl font-semibold tracking-tight">{study.title}</h1>[m
+[31m-        </div>[m
+[31m-[m
+[31m-        <div className="mt-2 text-sm text-slate-600">[m
+[31m-          {study.book} • {study.passage}[m
+[31m-        </div>[m
+[31m-[m
+[31m-        {Array.isArray(study.tags) && study.tags.length ? ([m
+[31m-          <div className="mt-4 flex flex-wrap gap-2">[m
+[31m-            {study.tags.map((t) => ([m
+[31m-              <span[m
+[31m-                key={t}[m
+[31m-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"[m
+[31m-              >[m
+[31m-                {t}[m
+[31m-              </span>[m
+[31m-            ))}[m
+[32m+[m[32m    <div className="mx-auto max-w-3xl px-4 py-8">[m
+[32m+[m[32m      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="text-sm font-semibold text-slate-700">Bible Study • {tenant.name}</div>[m
+[32m+[m[32m        <div className="mt-1 flex items-start justify-between gap-4">[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <h1 className="text-xl font-semibold tracking-tight text-slate-900">{study.title}</h1>[m
+[32m+[m[32m            <div className="mt-1 text-sm text-slate-700">[m
+[32m+[m[32m              {study.book} • {study.passage}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m            {Array.isArray(study.tags) && study.tags.length ? ([m
+[32m+[m[32m              <div className="mt-2 flex flex-wrap gap-2">[m
+[32m+[m[32m                {study.tags.map((t: string) => ([m
+[32m+[m[32m                  <span key={t} className="rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">[m
+[32m+[m[32m                    {t}[m
+[32m+[m[32m                  </span>[m
+[32m+[m[32m                ))}[m
+[32m+[m[32m              </div>[m
+[32m+[m[32m            ) : null}[m
+           </div>[m
+[31m-        ) : null}[m
+ [m
+[31m-        <div className="mt-6 flex flex-wrap gap-2">[m
+[31m-          <a[m
+[31m-            href={`/${encodeURIComponent(p.churchslug)}/studies`}[m
+[31m-            className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"[m
+[31m-          >[m
+[31m-            Back to studies[m
+[31m-          </a>[m
+[31m-[m
+[31m-          <form[m
+[31m-            action={deleteStudyAction.bind(null, {[m
+[31m-              churchslug: p.churchslug,[m
+[31m-              planId: study.id,[m
+[31m-            })}[m
+[31m-          >[m
+[31m-            <button[m
+[31m-              type="submit"[m
+[31m-              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"[m
+[32m+[m[32m          <div className="flex flex-wrap items-center gap-2">[m
+[32m+[m[32m            <a[m
+[32m+[m[32m              href={`/${encodeURIComponent(p.churchslug)}/studies`}[m
+[32m+[m[32m              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+             >[m
+[31m-              Delete[m
+[31m-            </button>[m
+[31m-          </form>[m
+[32m+[m[32m              Back to studies[m
+[32m+[m[32m            </a>[m
+[32m+[m
+[32m+[m[32m            <ConfirmDangerAction[m
+[32m+[m[32m              buttonLabel="Delete"[m
+[32m+[m[32m              title="Delete this study?"[m
+[32m+[m[32m              message="This will permanently delete the study and all sessions under it."[m
+[32m+[m[32m              dangerHint="This cannot be undone."[m
+[32m+[m[32m              action={deleteStudyAction.bind(null, { churchslug: p.churchslug, planId: study.id })}[m
+[32m+[m[32m            />[m
+[32m+[m[32m          </div>[m
+         </div>[m
+[31m-      </section>[m
+[32m+[m[32m      </div>[m
+ [m
+[31m-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="mb-3 text-sm font-semibold">New session</div>[m
+[32m+[m[32m      <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="text-base font-semibold tracking-tight text-slate-900">New session</div>[m
+ [m
+         <form[m
+[31m-          action={newSessionAction.bind(null, {[m
+[31m-            churchslug: p.churchslug,[m
+[31m-            planId: study.id,[m
+[31m-          })}[m
+[31m-          className="grid gap-4"[m
+[32m+[m[32m          action={newSessionAction.bind(null, { churchslug: p.churchslug, planId: study.id })}[m
+[32m+[m[32m          className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2"[m
+         >[m
+[31m-          <label className="grid gap-1">[m
+[31m-            <div className="text-xs font-semibold text-slate-700">[m
+[31m-              Passage (optional)[m
+[31m-            </div>[m
+[32m+[m[32m          <div className="sm:col-span-2">[m
+[32m+[m[32m            <div className="text-xs font-semibold text-slate-600">Passage (optional)</div>[m
+             <input[m
+               name="passage"[m
+[31m-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"[m
+[31m-              placeholder="John 1:1–18"[m
+[32m+[m[32m              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"[m
+[32m+[m[32m              placeholder="e.g., John 3:16-17"[m
+             />[m
+[31m-          </label>[m
+[31m-[m
+[31m-          <div className="grid gap-4 sm:grid-cols-2">[m
+[31m-            <label className="grid gap-1">[m
+[31m-              <div className="text-xs font-semibold text-slate-700">Track</div>[m
+[31m-              <select[m
+[31m-                name="track"[m
+[31m-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"[m
+[31m-                defaultValue="beginner"[m
+[31m-              >[m
+[31m-                <option value="beginner">beginner</option>[m
+[31m-                <option value="intermediate">intermediate</option>[m
+[31m-                <option value="advanced">advanced</option>[m
+[31m-              </select>[m
+[31m-            </label>[m
+[31m-[m
+[31m-            <label className="grid gap-1">[m
+[31m-              <div className="text-xs font-semibold text-slate-700">Mode</div>[m
+[31m-              <select[m
+[31m-                name="mode"[m
+[31m-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"[m
+[31m-                defaultValue="guided"[m
+[31m-              >[m
+[31m-                <option value="guided">guided</option>[m
+[31m-                <option value="freeform">freeform</option>[m
+[31m-              </select>[m
+[31m-            </label>[m
+           </div>[m
+ [m
+[31m-          <button[m
+[31m-            type="submit"[m
+[31m-            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"[m
+[31m-          >[m
+[31m-            Create session[m
+[31m-          </button>[m
+[31m-        </form>[m
+[31m-      </section>[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <div className="text-xs font-semibold text-slate-600">Track</div>[m
+[32m+[m[32m            <select[m
+[32m+[m[32m              name="track"[m
+[32m+[m[32m              defaultValue="beginner"[m
+[32m+[m[32m              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              <option value="beginner">beginner</option>[m
+[32m+[m[32m              <option value="intermediate">intermediate</option>[m
+[32m+[m[32m              <option value="advanced">advanced</option>[m
+[32m+[m[32m            </select>[m
+[32m+[m[32m          </div>[m
+ [m
+[31m-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="mb-3 text-sm font-semibold">[m
+[31m-          Sessions ({sessions.length})[m
+[31m-        </div>[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <div className="text-xs font-semibold text-slate-600">Mode</div>[m
+[32m+[m[32m            <select[m
+[32m+[m[32m              name="mode"[m
+[32m+[m[32m              defaultValue="guided"[m
+[32m+[m[32m              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              <option value="guided">guided</option>[m
+[32m+[m[32m              <option value="freeform">freeform</option>[m
+[32m+[m[32m            </select>[m
+[32m+[m[32m          </div>[m
+ [m
+[31m-        {sessions.length === 0 ? ([m
+[31m-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">[m
+[31m-            No sessions yet. Create one above.[m
+[32m+[m[32m          <div className="sm:col-span-2">[m
+[32m+[m[32m            <button className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">[m
+[32m+[m[32m              Create session[m
+[32m+[m[32m            </button>[m
+           </div>[m
+[31m-        ) : ([m
+[31m-          <div className="grid gap-3">[m
+[31m-            {sessions.map((s) => ([m
+[31m-              <div key={s.id} className="flex items-stretch gap-3">[m
+[31m-                <a[m
+[31m-                  href={`/${encodeURIComponent(p.churchslug)}/sessions/${encodeURIComponent([m
+[31m-                    s.id[m
+[31m-                  )}`}[m
+[31m-                  className="flex-1 rounded-xl border border-slate-200 p-4 hover:bg-slate-50"[m
+[31m-                >[m
+[31m-                  <div className="text-sm font-semibold">[m
+[31m-                    {s.passage ? s.passage : "Session"}[m
+[31m-                  </div>[m
+[31m-                  <div className="mt-1 text-xs text-slate-500">[m
+[31m-                    {formatDate(s.session_date)}[m
+[31m-                  </div>[m
+[32m+[m[32m        </form>[m
+[32m+[m[32m      </div>[m
+ [m
+[31m-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">[m
+[31m-                    {s.track ? ([m
+[31m-                      <span className="rounded-xl bg-slate-100 px-3 py-1">[m
+[31m-                        {s.track}[m
+[31m-                      </span>[m
+[31m-                    ) : null}[m
+[31m-                    {s.mode ? ([m
+[31m-                      <span className="rounded-xl bg-slate-100 px-3 py-1">[m
+[31m-                        {s.mode}[m
+[31m-                      </span>[m
+[31m-                    ) : null}[m
+[31m-                    {s.status ? ([m
+[31m-                      <span className="rounded-xl bg-slate-100 px-3 py-1">[m
+[31m-                        {s.status}[m
+[31m-                      </span>[m
+[31m-                    ) : null}[m
+[31m-                  </div>[m
+[31m-                </a>[m
+[32m+[m[32m      <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="text-base font-semibold tracking-tight text-slate-900">Sessions ({sessions.length})</div>[m
+ [m
+[31m-                <form[m
+[31m-                  action={deleteSessionAction.bind(null, {[m
+[31m-                    churchslug: p.churchslug,[m
+[31m-                    planId: study.id,[m
+[31m-                    sessionId: s.id,[m
+[31m-                  })}[m
+[31m-                >[m
+[31m-                  <button[m
+[31m-                    type="submit"[m
+[31m-                    className="h-full rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"[m
+[32m+[m[32m        <div className="mt-4 space-y-3">[m
+[32m+[m[32m          {sessions.length === 0 ? ([m
+[32m+[m[32m            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">[m
+[32m+[m[32m              No sessions yet. Create one above.[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          ) : ([m
+[32m+[m[32m            sessions.map((s: any) => ([m
+[32m+[m[32m              <div key={s.id} className="rounded-2xl border border-slate-200 bg-white p-4">[m
+[32m+[m[32m                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">[m
+[32m+[m[32m                  <a[m
+[32m+[m[32m                    href={`/${encodeURIComponent(p.churchslug)}/sessions/${encodeURIComponent(s.id)}`}[m
+[32m+[m[32m                    className="text-sm font-semibold text-slate-900"[m
+                   >[m
+[31m-                    Delete[m
+[31m-                  </button>[m
+[31m-                </form>[m
+[32m+[m[32m                    {s.passage ? s.passage : "Session"} <span className="text-slate-500">• {formatDate(s.session_date)}</span>{" "}[m
+[32m+[m[32m                    {s.track ? <span className="text-slate-500">({s.track})</span> : null}{" "}[m
+[32m+[m[32m                    {s.mode ? <span className="text-slate-500">({s.mode})</span> : null}{" "}[m
+[32m+[m[32m                    {s.status ? <span className="text-slate-500">({s.status})</span> : null}[m
+[32m+[m[32m                  </a>[m
+[32m+[m
+[32m+[m[32m                  <ConfirmDangerAction[m
+[32m+[m[32m                    buttonLabel="Delete"[m
+[32m+[m[32m                    title="Delete this session?"[m
+[32m+[m[32m                    message="This will permanently delete the session and all responses."[m
+[32m+[m[32m                    dangerHint="This cannot be undone."[m
+[32m+[m[32m                    action={deleteSessionAction.bind(null, {[m
+[32m+[m[32m                      churchslug: p.churchslug,[m
+[32m+[m[32m                      planId: study.id,[m
+[32m+[m[32m                      sessionId: s.id,[m
+[32m+[m[32m                    })}[m
+[32m+[m[32m                  />[m
+[32m+[m[32m                </div>[m
+               </div>[m
+[31m-            ))}[m
+[31m-          </div>[m
+[31m-        )}[m
+[31m-      </section>[m
+[32m+[m[32m            ))[m
+[32m+[m[32m          )}[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      </div>[m
+     </div>[m
+   );[m
+ }[m
+[1mdiff --git a/src/app/[churchslug]/studies/page.tsx b/src/app/[churchslug]/studies/page.tsx[m
+[1mindex 0d6601c..a2f3db1 100644[m
+[1m--- a/src/app/[churchslug]/studies/page.tsx[m
+[1m+++ b/src/app/[churchslug]/studies/page.tsx[m
+[36m@@ -2,6 +2,7 @@[m
+ import { redirect } from "next/navigation";[m
+ import { getTenantBySlugOrThrow } from "@/lib/tenant";[m
+ import { hardDeleteStudy, listStudies } from "@/lib/db/studies";[m
+[32m+[m[32mimport { ConfirmDangerAction } from "@/components/ConfirmDangerAction";[m
+ [m
+ async function deleteStudyAction(args: { churchslug: string; planId: string }) {[m
+   "use server";[m
+[36m@@ -10,85 +11,71 @@[m [masync function deleteStudyAction(args: { churchslug: string; planId: string }) {[m
+   redirect(`/${encodeURIComponent(args.churchslug)}/studies`);[m
+ }[m
+ [m
+[31m-export default async function ChurchStudiesPage({[m
+[31m-  params,[m
+[31m-}: {[m
+[31m-  params: Promise<{ churchslug: string }>;[m
+[31m-}) {[m
+[32m+[m[32mexport default async function ChurchStudiesPage({ params }: { params: Promise<{ churchslug: string }> }) {[m
+   const p = await params;[m
+   const tenant = await getTenantBySlugOrThrow(p.churchslug);[m
+   const studies = await listStudies(tenant.id);[m
+ [m
+   return ([m
+[31m-    <div className="grid gap-6">[m
+[31m-      <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="text-xs text-slate-500">Bible Study • {tenant.name}</div>[m
+[31m-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">[m
+[31m-          <h1 className="text-2xl font-semibold tracking-tight">Studies</h1>[m
+[32m+[m[32m    <div className="mx-auto max-w-4xl px-4 py-8">[m
+[32m+[m[32m      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="text-sm font-semibold text-slate-700">Bible Study • {tenant.name}</div>[m
+[32m+[m[32m        <div className="mt-1 flex items-center justify-between gap-4">[m
+[32m+[m[32m          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Studies</h1>[m
+           <a[m
+[31m-            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"[m
+             href={`/${encodeURIComponent(p.churchslug)}/studies/new`}[m
+[32m+[m[32m            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"[m
+           >[m
+             New study[m
+           </a>[m
+         </div>[m
+[31m-        <p className="mt-3 text-sm text-slate-600">[m
+[31m-          Create and manage studies for this church workspace.[m
+[31m-        </p>[m
+[31m-      </section>[m
+[32m+[m[32m        <div className="mt-2 text-sm text-slate-600">Create and manage studies for this church workspace.</div>[m
+[32m+[m[32m      </div>[m
+ [m
+[31m-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m      <div className="mt-6 space-y-3">[m
+         {studies.length === 0 ? ([m
+[31m-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">[m
+[32m+[m[32m          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-700">[m
+             No studies yet. Click New study.[m
+           </div>[m
+         ) : ([m
+[31m-          <div className="grid gap-3">[m
+[31m-            {studies.map((s) => ([m
+[31m-              <div key={s.id} className="flex items-stretch gap-3">[m
+[31m-                <a[m
+[31m-                  href={`/${encodeURIComponent(p.churchslug)}/studies/${encodeURIComponent([m
+[31m-                    s.id[m
+[31m-                  )}`}[m
+[31m-                  className="flex-1 rounded-xl border border-slate-200 p-4 hover:bg-slate-50"[m
+[31m-                >[m
+[31m-                  <div className="text-sm font-semibold">{s.title}</div>[m
+[31m-                  <div className="mt-1 text-xs text-slate-500">[m
+[31m-                    {s.book} • {s.passage}[m
+[32m+[m[32m          studies.map((s: any) => ([m
+[32m+[m[32m            <div key={s.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">[m
+[32m+[m[32m              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                  <a[m
+[32m+[m[32m                    href={`/${encodeURIComponent(p.churchslug)}/studies/${encodeURIComponent(s.id)}`}[m
+[32m+[m[32m                    className="text-base font-semibold text-slate-900"[m
+[32m+[m[32m                  >[m
+[32m+[m[32m                    {s.title}[m
+[32m+[m[32m                  </a>[m
+[32m+[m[32m                  <div className="mt-1 text-sm text-slate-700">[m
+[32m+[m[32m                    {s.book} • {s.passage}{" "}[m
+[32m+[m[32m                    {Array.isArray(s.tags) && s.tags.length ? ([m
+[32m+[m[32m                      <span className="text-slate-500">[m
+[32m+[m[32m                        ([m
+[32m+[m[32m                        {s.tags.slice(0, 6).map((t: string) => ([m
+[32m+[m[32m                          <span key={t} className="mr-1 inline-block">[m
+[32m+[m[32m                            {t}[m
+[32m+[m[32m                          </span>[m
+[32m+[m[32m                        ))}[m
+[32m+[m[32m                        )[m
+[32m+[m[32m                      </span>[m
+[32m+[m[32m                    ) : null}[m
+                   </div>[m
+[32m+[m[32m                </div>[m
+ [m
+[31m-                  {Array.isArray(s.tags) && s.tags.length ? ([m
+[31m-                    <div className="mt-3 flex flex-wrap gap-2">[m
+[31m-                      {s.tags.slice(0, 6).map((t) => ([m
+[31m-                        <span[m
+[31m-                          key={t}[m
+[31m-                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"[m
+[31m-                        >[m
+[31m-                          {t}[m
+[31m-                        </span>[m
+[31m-                      ))}[m
+[31m-                    </div>[m
+[31m-                  ) : null}[m
+[31m-                </a>[m
+[31m-[m
+[31m-                <form[m
+[31m-                  action={deleteStudyAction.bind(null, {[m
+[31m-                    churchslug: p.churchslug,[m
+[31m-                    planId: s.id,[m
+[31m-                  })}[m
+[31m-                >[m
+[31m-                  <button[m
+[31m-                    type="submit"[m
+[31m-                    className="h-full rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"[m
+[31m-                  >[m
+[31m-                    Delete[m
+[31m-                  </button>[m
+[31m-                </form>[m
+[32m+[m[32m                <ConfirmDangerAction[m
+[32m+[m[32m                  buttonLabel="Delete"[m
+[32m+[m[32m                  title="Delete this study?"[m
+[32m+[m[32m                  message="This will permanently delete the study and all sessions under it."[m
+[32m+[m[32m                  dangerHint="This cannot be undone."[m
+[32m+[m[32m                  action={deleteStudyAction.bind(null, { churchslug: p.churchslug, planId: s.id })}[m
+[32m+[m[32m                />[m
+               </div>[m
+[31m-            ))}[m
+[31m-          </div>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          ))[m
+         )}[m
+[31m-      </section>[m
+[32m+[m[32m      </div>[m
+     </div>[m
+   );[m
+ }[m
+[1mdiff --git a/src/app/sessions/[sessionid]/page.tsx b/src/app/sessions/[sessionid]/page.tsx[m
+[1mindex 5aeca9a..0a4fd3d 100644[m
+[1m--- a/src/app/sessions/[sessionid]/page.tsx[m
+[1m+++ b/src/app/sessions/[sessionid]/page.tsx[m
+[36m@@ -1,11 +1,8 @@[m
+ // src/app/sessions/[sessionid]/page.tsx[m
+ import { redirect } from "next/navigation";[m
+ import { getPersonalTenantOrThrow } from "@/lib/tenant_personal";[m
+[31m-import {[m
+[31m-  getSessionById,[m
+[31m-  updateSessionMeta,[m
+[31m-  hardDeleteSession,[m
+[31m-} from "@/lib/db/study_sessions";[m
+[32m+[m[32mimport { getSessionById, updateSessionMeta, hardDeleteSession } from "@/lib/db/study_sessions";[m
+[32m+[m[32mimport { ConfirmDangerAction } from "@/components/ConfirmDangerAction";[m
+ [m
+ const FIXED_LOCALE = "en-US";[m
+ const FIXED_TZ = "America/New_York";[m
+[36m@@ -30,40 +27,21 @@[m [mfunction formatDate(iso: string) {[m
+ function computeCompletionPercent(session: any): number {[m
+   const r = (session?.responses ?? {}) as Record<string, unknown>;[m
+   const track = String(session?.track ?? "beginner").toLowerCase();[m
+[31m-[m
+   const baseKeys = ["obs", "aud", "mean", "sim", "diff", "app"];[m
+[31m-  const advKeys = [[m
+[31m-    "advStructure",[m
+[31m-    "advThemes",[m
+[31m-    "advCrossRefs",[m
+[31m-    "advWordStudy",[m
+[31m-    "advCommentary",[m
+[31m-  ];[m
+[31m-[m
+[32m+[m[32m  const advKeys = ["advStructure", "advThemes", "advCrossRefs", "advWordStudy", "advCommentary"];[m
+   const keys = track === "advanced" ? [...baseKeys, ...advKeys] : baseKeys;[m
+ [m
+[31m-  const filled = keys.filter([m
+[31m-    (k) => String((r as any)?.[k] ?? "").trim().length > 0[m
+[31m-  ).length;[m
+[31m-[m
+[32m+[m[32m  const filled = keys.filter((k) => String((r as any)?.[k] ?? "").trim().length > 0).length;[m
+   const total = keys.length;[m
+   if (total === 0) return 0;[m
+[31m-[m
+   return Math.max(0, Math.min(100, Math.round((filled / total) * 100)));[m
+ }[m
+ [m
+ function firstMissingAnchor(session: any): string {[m
+   const r = (session?.responses ?? {}) as Record<string, unknown>;[m
+   const track = String(session?.track ?? "beginner").toLowerCase();[m
+[31m-[m
+   const base = ["obs", "aud", "mean", "sim", "diff", "app"];[m
+[31m-  const adv = [[m
+[31m-    "advStructure",[m
+[31m-    "advThemes",[m
+[31m-    "advCrossRefs",[m
+[31m-    "advWordStudy",[m
+[31m-    "advCommentary",[m
+[31m-  ];[m
+[32m+[m[32m  const adv = ["advStructure", "advThemes", "advCrossRefs", "advWordStudy", "advCommentary"];[m
+   const keys = track === "advanced" ? [...base, ...adv] : base;[m
+ [m
+   for (const k of keys) {[m
+[36m@@ -77,11 +55,9 @@[m [mtype CheckLevel = "pass" | "warn" | "fail" | "none";[m
+ function versePatternHit(s: string) {[m
+   return /\b\d{1,3}:\d{1,3}\b/.test(s);[m
+ }[m
+[31m-[m
+ function connectorHit(s: string) {[m
+   return /\b(because|therefore|so that|since|in light of|as a result)\b/i.test(s);[m
+ }[m
+[31m-[m
+ function quoteHit(s: string) {[m
+   return /"([^"]{8,})"/.test(s) || /“([^”]{8,})”/.test(s);[m
+ }[m
+[36m@@ -98,17 +74,14 @@[m [mfunction anchoredStatus(app: string): CheckLevel {[m
+ function measurableStatus(app: string): CheckLevel {[m
+   const a = (app ?? "").trim();[m
+   if (!a) return "none";[m
+[31m-[m
+   const timeMarker =[m
+     /\b(today|tonight|tomorrow|this week|this month|by\b|before\b|daily\b|weekly\b|on (mon|tue|wed|thu|thur|fri|sat|sun)\b|\b\d+\s?(min|mins|minute|minutes|day|days|week|weeks)\b)/i.test([m
+       a[m
+     );[m
+[31m-[m
+   const concreteVerb =[m
+     /\b(call|text|talk|apologize|forgive|pray|read|memorize|journal|fast|serve|share|confess|meet|invite|encourage|give|write|listen|visit)\b/i.test([m
+       a[m
+     );[m
+[31m-[m
+   if (timeMarker && concreteVerb) return "pass";[m
+   if (timeMarker || concreteVerb) return "warn";[m
+   return "fail";[m
+[36m@@ -117,26 +90,18 @@[m [mfunction measurableStatus(app: string): CheckLevel {[m
+ function godCenteredStatus(app: string): CheckLevel {[m
+   const a = (app ?? "").trim();[m
+   if (!a) return "none";[m
+[31m-[m
+[31m-  const godWords =[m
+[31m-    /\b(God|Jesus|Christ|Spirit|Holy Spirit|grace|gospel|prayer|obedience|faith)\b/i.test(a);[m
+[31m-  const postureWords =[m
+[31m-    /\b(repenten|repent|humble|humility|forgive|forgiveness|serve|worship)\b/i.test(a);[m
+[31m-[m
+[32m+[m[32m  const godWords = /\b(God|Jesus|Christ|Spirit|Holy Spirit|grace|gospel|prayer|obedience|faith)\b/i.test(a);[m
+[32m+[m[32m  const postureWords = /\b(repenten|repent|humble|humility|forgive|forgiveness|serve|worship)\b/i.test(a);[m
+   const explicitlySelfOnly = /\b(manifest|be a better person)\b/i.test(a);[m
+[31m-[m
+   if (explicitlySelfOnly) return "fail";[m
+   if (godWords || postureWords) return "pass";[m
+   return "warn";[m
+ }[m
+ [m
+ function checkBadge(level: CheckLevel) {[m
+[31m-  if (level === "pass")[m
+[31m-    return { emoji: "✅", cls: "border-emerald-200 bg-emerald-50 text-emerald-900" };[m
+[31m-  if (level === "warn")[m
+[31m-    return { emoji: "🟡", cls: "border-amber-200 bg-amber-50 text-amber-900" };[m
+[31m-  if (level === "fail")[m
+[31m-    return { emoji: "🔴", cls: "border-rose-200 bg-rose-50 text-rose-900" };[m
+[32m+[m[32m  if (level === "pass") return { emoji: "✅", cls: "border-emerald-200 bg-emerald-50 text-emerald-900" };[m
+[32m+[m[32m  if (level === "warn") return { emoji: "⚠️", cls: "border-amber-200 bg-amber-50 text-amber-900" };[m
+[32m+[m[32m  if (level === "fail") return { emoji: "⛔", cls: "border-rose-200 bg-rose-50 text-rose-900" };[m
+   return { emoji: "•", cls: "border-slate-200 bg-slate-50 text-slate-700" };[m
+ }[m
+ [m
+[36m@@ -145,14 +110,12 @@[m [mfunction buildShareText(metaLine: string, sections: Array<{ label: string; value[m
+   lines.push("Session Summary");[m
+   lines.push(metaLine);[m
+   lines.push("");[m
+[31m-[m
+   for (const s of sections) {[m
+     if (!String(s.value ?? "").trim()) continue;[m
+     lines.push(`${s.label}:`);[m
+     lines.push(String(s.value ?? "").trim());[m
+     lines.push("");[m
+   }[m
+[31m-[m
+   return lines.join("\n");[m
+ }[m
+ [m
+[36m@@ -168,7 +131,6 @@[m [masync function deleteSessionAction(sessionId: string) {[m
+ async function markCompleteAction(sessionId: string) {[m
+   "use server";[m
+   const tenant = await getPersonalTenantOrThrow();[m
+[31m-[m
+   const session = await getSessionById(tenant.id, sessionId);[m
+   if (!session) throw new Error("Session not found.");[m
+ [m
+[36m@@ -191,7 +153,7 @@[m [mexport default async function SessionViewerPage({[m
+   searchParams,[m
+ }: {[m
+   params: Promise<{ sessionid: string }>;[m
+[31m-  searchParams?: Promise<Record<string, string | undefined>>;[m
+[32m+[m[32m  searchParams?: Promise<Record<string, string | string[] | undefined>>;[m
+ }) {[m
+   const p = await params;[m
+   const sp = (await searchParams) ?? {};[m
+[36m@@ -202,11 +164,11 @@[m [mexport default async function SessionViewerPage({[m
+ [m
+   if (!session) {[m
+     return ([m
+[31m-      <div className="mx-auto max-w-3xl px-4 py-10">[m
+[31m-        <div className="text-sm font-semibold text-slate-700">Bible Study • Personal</div>[m
+[31m-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">[m
+[31m-          Session not found.[m
+[31m-        </h1>[m
+[32m+[m[32m      <div className="mx-auto max-w-3xl px-4 py-8">[m
+[32m+[m[32m        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m          <div className="text-sm font-semibold text-slate-700">Bible Study • Personal</div>[m
+[32m+[m[32m          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Session not found.</h1>[m
+[32m+[m[32m        </div>[m
+       </div>[m
+     );[m
+   }[m
+[36m@@ -214,350 +176,257 @@[m [mexport default async function SessionViewerPage({[m
+   const percent = computeCompletionPercent(session);[m
+   const anchor = firstMissingAnchor(session);[m
+ [m
+[31m-  return ([m
+[31m-    <div id="top" className="mx-auto max-w-3xl px-4 pb-16 pt-8">[m
+[31m-      <div className="text-sm font-semibold text-slate-700">Bible Study • Personal</div>[m
+[31m-[m
+[31m-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">[m
+[31m-        {session.passage ? session.passage : "Study session"}[m
+[31m-      </h1>[m
+[31m-[m
+[31m-      <div className="mt-3 flex flex-wrap items-center gap-3">[m
+[31m-        <a[m
+[31m-          href={`/studies/${encodeURIComponent(session.plan_id)}`}[m
+[31m-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-        >[m
+[31m-          Back to study[m
+[31m-        </a>[m
+[31m-[m
+[31m-        <a[m
+[31m-          href={anchor}[m
+[31m-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-        >[m
+[31m-          Resume[m
+[31m-        </a>[m
+[31m-[m
+[31m-        <a[m
+[31m-          href={`/sessions/${encodeURIComponent(session.id)}/edit`}[m
+[31m-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-        >[m
+[31m-          Open editor[m
+[31m-        </a>[m
+[31m-[m
+[31m-        <form action={deleteSessionAction.bind(null, session.id)}>[m
+[31m-          <button[m
+[31m-            type="submit"[m
+[31m-            className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 hover:bg-rose-100"[m
+[31m-          >[m
+[31m-            Delete[m
+[31m-          </button>[m
+[31m-        </form>[m
+[31m-      </div>[m
+[32m+[m[32m  const r = (session.responses ?? {}) as Record<string, unknown>;[m
+[32m+[m[32m  const track = String(session.track ?? "beginner");[m
+[32m+[m[32m  const mode = String(session.mode ?? "guided");[m
+[32m+[m[32m  const genre = String(session.genre ?? "Unknown");[m
+[32m+[m[32m  const metaLine = `Track: ${track} • Mode: ${mode} • Genre: ${genre === "Unknown" ? "General" : genre}`;[m
+[32m+[m
+[32m+[m[32m  const pageTitle = session.passage ? String(session.passage) : "Study session";[m
+[32m+[m[32m  const contextLabel = "Bible Study • Personal";[m
+[32m+[m[32m  const dateLabel = formatDate(session.session_date);[m
+[32m+[m
+[32m+[m[32m  const sectionDefs: Array<{ key: string; label: string }> = [[m
+[32m+[m[32m    { key: "obs", label: "Observations" },[m
+[32m+[m[32m    { key: "aud", label: "Original audience" },[m
+[32m+[m[32m    { key: "mean", label: "Meaning (then)" },[m
+[32m+[m[32m    { key: "sim", label: "Similarities (bridge)" },[m
+[32m+[m[32m    { key: "diff", label: "Differences (guardrails)" },[m
+[32m+[m[32m    { key: "app", label: "Application / response" },[m
+[32m+[m[32m  ];[m
+ [m
+[31m-      <div className="mt-4 text-sm text-slate-600">{formatDate(session.session_date)}</div>[m
+[32m+[m[32m  const advDefs: Array<{ key: string; label: string }> = [[m
+[32m+[m[32m    { key: "advStructure", label: "Advanced — Structure / flow" },[m
+[32m+[m[32m    { key: "advThemes", label: "Advanced — Themes" },[m
+[32m+[m[32m    { key: "advCrossRefs", label: "Advanced — Cross references" },[m
+[32m+[m[32m    { key: "advWordStudy", label: "Advanced — Word study" },[m
+[32m+[m[32m    { key: "advCommentary", label: "Advanced — Commentary / questions" },[m
+[32m+[m[32m  ];[m
+ [m
+[31m-      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">[m
+[31m-        <div>[m
+[31m-          Status: <span className="font-semibold text-slate-800">{session.status ?? "draft"}</span>[m
+[31m-        </div>[m
+[31m-        <div>•</div>[m
+[31m-        <div>[m
+[31m-          Completion: <span className="font-semibold text-slate-800">{percent}%</span>[m
+[31m-        </div>[m
+[31m-      </div>[m
+[32m+[m[32m  const sections: Array<{ label: string; value: string }> = [];[m
+[32m+[m[32m  const passageText = String((r as any)?.passageText ?? "");[m
+[32m+[m[32m  if (passageText.trim()) sections.push({ label: "Passage text (pasted)", value: passageText });[m
+[32m+[m
+[32m+[m[32m  for (const s of sectionDefs) {[m
+[32m+[m[32m    const v = String((r as any)?.[s.key] ?? "");[m
+[32m+[m[32m    if (v.trim()) sections.push({ label: s.label, value: v });[m
+[32m+[m[32m  }[m
+ [m
+[31m-      {done ? ([m
+[31m-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">[m
+[31m-          Marked complete.[m
+[32m+[m[32m  if (String(session.track ?? "").toLowerCase() === "advanced") {[m
+[32m+[m[32m    for (const s of advDefs) {[m
+[32m+[m[32m      const v = String((r as any)?.[s.key] ?? "");[m
+[32m+[m[32m      if (v.trim()) sections.push({ label: s.label, value: v });[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  const notes = String((r as any)?.notes ?? "");[m
+[32m+[m[32m  if (notes.trim()) sections.push({ label: "Notes", value: notes });[m
+[32m+[m
+[32m+[m[32m  const app = String((r as any)?.app ?? "");[m
+[32m+[m[32m  const a = anchoredStatus(app);[m
+[32m+[m[32m  const m2 = measurableStatus(app);[m
+[32m+[m[32m  const g = godCenteredStatus(app);[m
+[32m+[m
+[32m+[m[32m  const shareText = buildShareText([m
+[32m+[m[32m    `${contextLabel} • ${pageTitle} • ${dateLabel} • ${metaLine} • Completion: ${percent}%`,[m
+[32m+[m[32m    sections[m
+[32m+[m[32m  );[m
+[32m+[m
+[32m+[m[32m  const backToStudyHref = `/studies/${encodeURIComponent(session.plan_id)}`;[m
+[32m+[m[32m  const resumeHref = `${backToStudyHref}${anchor}`;[m
+[32m+[m[32m  const editorHref = `/sessions/${encodeURIComponent(p.sessionid)}/edit`;[m
+[32m+[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <div id="top" className="mx-auto max-w-3xl px-4 py-8">[m
+[32m+[m[32m      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <div className="text-sm font-semibold text-slate-700">{contextLabel}</div>[m
+[32m+[m[32m            <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">{pageTitle}</h1>[m
+[32m+[m[32m            <div className="mt-2 text-sm text-slate-600">{dateLabel}</div>[m
+[32m+[m[32m            <div className="mt-1 text-sm text-slate-600">[m
+[32m+[m[32m              Status: <span className="font-semibold text-slate-900">{session.status ?? "draft"}</span> • Completion:{" "}[m
+[32m+[m[32m              <span className="font-semibold text-slate-900">{percent}%</span>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="flex flex-wrap items-center gap-2">[m
+[32m+[m[32m            <a[m
+[32m+[m[32m              href={backToStudyHref}[m
+[32m+[m[32m              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Back to study[m
+[32m+[m[32m            </a>[m
+[32m+[m[32m            <a[m
+[32m+[m[32m              href={resumeHref}[m
+[32m+[m[32m              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Resume[m
+[32m+[m[32m            </a>[m
+[32m+[m[32m            <a[m
+[32m+[m[32m              href={editorHref}[m
+[32m+[m[32m              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Open editor[m
+[32m+[m[32m            </a>[m
+[32m+[m
+[32m+[m[32m            <ConfirmDangerAction[m
+[32m+[m[32m              buttonLabel="Delete"[m
+[32m+[m[32m              title="Delete this session?"[m
+[32m+[m[32m              message="This will permanently delete this session and all of its responses."[m
+[32m+[m[32m              dangerHint="This cannot be undone."[m
+[32m+[m[32m              action={deleteSessionAction.bind(null, p.sessionid)}[m
+[32m+[m[32m            />[m
+[32m+[m[32m          </div>[m
+         </div>[m
+[31m-      ) : null}[m
+[31m-[m
+[31m-      {(() => {[m
+[31m-        const r = (session.responses ?? {}) as Record<string, unknown>;[m
+[31m-        const track = String(session.track ?? "beginner");[m
+[31m-        const mode = String(session.mode ?? "guided");[m
+[31m-        const genre = String(session.genre ?? "Unknown");[m
+[31m-        const metaLine = `Track: ${track} • Mode: ${mode} • Genre: ${genre === "Unknown" ? "General" : genre}`;[m
+[31m-[m
+[31m-        const pageTitle = session.passage ? String(session.passage) : "Study session";[m
+[31m-        const contextLabel = "Bible Study • Personal";[m
+[31m-        const dateLabel = formatDate(session.session_date);[m
+[31m-[m
+[31m-        const sectionDefs: Array<{ key: string; label: string }> = [[m
+[31m-          { key: "obs", label: "Observations" },[m
+[31m-          { key: "aud", label: "Original audience" },[m
+[31m-          { key: "mean", label: "Meaning (then)" },[m
+[31m-          { key: "sim", label: "Similarities (bridge)" },[m
+[31m-          { key: "diff", label: "Differences (guardrails)" },[m
+[31m-          { key: "app", label: "Application / response" },[m
+[31m-        ];[m
+[31m-[m
+[31m-        const advDefs: Array<{ key: string; label: string }> = [[m
+[31m-          { key: "advStructure", label: "Advanced — Structure / flow" },[m
+[31m-          { key: "advThemes", label: "Advanced — Themes" },[m
+[31m-          { key: "advCrossRefs", label: "Advanced — Cross references" },[m
+[31m-          { key: "advWordStudy", label: "Advanced — Word study" },[m
+[31m-          { key: "advCommentary", label: "Advanced — Commentary / questions" },[m
+[31m-        ];[m
+[31m-[m
+[31m-        const sections: Array<{ label: string; value: string }> = [];[m
+[31m-[m
+[31m-        const passageText = String((r as any)?.passageText ?? "");[m
+[31m-        if (passageText.trim()) sections.push({ label: "Passage text (pasted)", value: passageText });[m
+[31m-[m
+[31m-        for (const s of sectionDefs) {[m
+[31m-          const v = String((r as any)?.[s.key] ?? "");[m
+[31m-          if (v.trim()) sections.push({ label: s.label, value: v });[m
+[31m-        }[m
+[31m-[m
+[31m-        if (String(session.track ?? "").toLowerCase() === "advanced") {[m
+[31m-          for (const s of advDefs) {[m
+[31m-            const v = String((r as any)?.[s.key] ?? "");[m
+[31m-            if (v.trim()) sections.push({ label: s.label, value: v });[m
+[31m-          }[m
+[31m-        }[m
+[31m-[m
+[31m-        const notes = String((r as any)?.notes ?? "");[m
+[31m-        if (notes.trim()) sections.push({ label: "Notes", value: notes });[m
+[31m-[m
+[31m-        const app = String((r as any)?.app ?? "");[m
+[31m-        const a = anchoredStatus(app);[m
+[31m-        const m2 = measurableStatus(app);[m
+[31m-        const g = godCenteredStatus(app);[m
+[31m-[m
+[31m-        const shareText = buildShareText([m
+[31m-          `${contextLabel} • ${pageTitle} • ${dateLabel} • ${metaLine} • Completion: ${percent}%`,[m
+[31m-          sections[m
+[31m-        );[m
+[31m-[m
+[31m-        return ([m
+[31m-          <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[31m-            <div className="flex flex-wrap items-start justify-between gap-4">[m
+[31m-              <div>[m
+[31m-                <div className="text-sm font-semibold">Session summary</div>[m
+[31m-                <div className="mt-1 text-sm text-slate-600">[m
+[31m-                  A printable/shareable summary of your session (no AI — just what you wrote).[m
+[31m-                </div>[m
+[31m-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">[m
+[31m-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-700">[m
+[31m-                    {metaLine}[m
+[31m-                  </span>[m
+[31m-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-700">[m
+[31m-                    Completion: {percent}%[m
+[31m-                  </span>[m
+[31m-                </div>[m
+[31m-              </div>[m
+ [m
+[31m-              <div className="flex flex-wrap gap-2">[m
+[31m-                <button[m
+[31m-                  type="button"[m
+[31m-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-                  data-bsh-action="copy"[m
+[31m-                  data-bsh-text={JSON.stringify(shareText)}[m
+[31m-                >[m
+[31m-                  Copy summary[m
+[31m-                </button>[m
+[31m-                <button[m
+[31m-                  type="button"[m
+[31m-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[31m-                  data-bsh-action="share"[m
+[31m-                  data-bsh-text={JSON.stringify(shareText)}[m
+[31m-                  data-bsh-title={JSON.stringify(pageTitle)}[m
+[31m-                >[m
+[31m-                  Share[m
+[31m-                </button>[m
+[32m+[m[32m        {done ? ([m
+[32m+[m[32m          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">[m
+[32m+[m[32m            Marked complete.[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        ) : null}[m
+[32m+[m
+[32m+[m[32m        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">[m
+[32m+[m[32m          <div className="text-sm font-semibold text-slate-900">Session summary</div>[m
+[32m+[m[32m          <div className="mt-1 text-sm text-slate-600">[m
+[32m+[m[32m            A printable/shareable summary of your session (no AI — just what you wrote).[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="mt-3 text-sm text-slate-700">[m
+[32m+[m[32m            {metaLine} <span className="text-slate-400">•</span> Completion: {percent}%[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="mt-4 flex flex-wrap gap-2">[m
+[32m+[m[32m            <button[m
+[32m+[m[32m              type="button"[m
+[32m+[m[32m              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m              onClick={() => {[m
+[32m+[m[32m                try {[m
+[32m+[m[32m                  navigator.clipboard.writeText(shareText);[m
+[32m+[m[32m                } catch {[m
+[32m+[m[32m                  // ignore[m
+[32m+[m[32m                }[m
+[32m+[m[32m              }}[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Copy summary[m
+[32m+[m[32m            </button>[m
+[32m+[m
+[32m+[m[32m            <button[m
+[32m+[m[32m              type="button"[m
+[32m+[m[32m              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m              onClick={() => {[m
+[32m+[m[32m                try {[m
+[32m+[m[32m                  if (navigator.share) {[m
+[32m+[m[32m                    navigator.share({ title: "Session Summary", text: shareText });[m
+[32m+[m[32m                  } else {[m
+[32m+[m[32m                    navigator.clipboard.writeText(shareText);[m
+[32m+[m[32m                  }[m
+[32m+[m[32m                } catch {[m
+[32m+[m[32m                  // ignore[m
+[32m+[m[32m                }[m
+[32m+[m[32m              }}[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Share[m
+[32m+[m[32m            </button>[m
+[32m+[m
+[32m+[m[32m            <button[m
+[32m+[m[32m              type="button"[m
+[32m+[m[32m              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m              onClick={() => window.print()}[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Export (Print/PDF)[m
+[32m+[m[32m            </button>[m
+[32m+[m
+[32m+[m[32m            {session.status !== "complete" ? ([m
+[32m+[m[32m              <form action={markCompleteAction.bind(null, p.sessionid)}>[m
+                 <button[m
+[31m-                  type="button"[m
+[31m-                  className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:opacity-90"[m
+[31m-                  data-bsh-action="print"[m
+[31m-                  data-bsh-title={JSON.stringify(pageTitle)}[m
+[31m-                  data-bsh-context={JSON.stringify(contextLabel)}[m
+[31m-                  data-bsh-date={JSON.stringify(dateLabel)}[m
+[31m-                  data-bsh-percent={JSON.stringify(String(percent))}[m
+[31m-                  data-bsh-meta={JSON.stringify(metaLine)}[m
+[31m-                  data-bsh-sections={JSON.stringify(sections)}[m
+[32m+[m[32m                  type="submit"[m
+[32m+[m[32m                  className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"[m
+                 >[m
+[31m-                  Export (Print/PDF)[m
+[32m+[m[32m                  Mark complete[m
+                 </button>[m
+[31m-              </div>[m
+[31m-            </div>[m
+[31m-[m
+[31m-            <div className="mt-5 grid gap-3">[m
+[31m-              {(() => {[m
+[31m-                const b = checkBadge(a);[m
+[31m-                return ([m
+[31m-                  <div className={`rounded-2xl border p-4 ${b.cls}`}>[m
+[31m-                    <div className="text-sm font-semibold">{b.emoji} Anchored to the text</div>[m
+[31m-                    <div className="mt-1 text-sm text-slate-800">[m
+[31m-                      {a === "pass"[m
+[31m-                        ? "Looks anchored."[m
+[31m-                        : a === "warn"[m
+[31m-                          ? "Consider adding a verse reference or a “because/therefore” connection."[m
+[31m-                          : a === "fail"[m
+[31m-                            ? "This reads unanchored — tie it to an observation or verse."[m
+[31m-                            : "No application written yet."}[m
+[31m-                    </div>[m
+[32m+[m[32m              </form>[m
+[32m+[m[32m            ) : null}[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">[m
+[32m+[m[32m            {(() => {[m
+[32m+[m[32m              const b = checkBadge(a);[m
+[32m+[m[32m              return ([m
+[32m+[m[32m                <div className={`rounded-2xl border px-4 py-3 text-sm ${b.cls}`}>[m
+[32m+[m[32m                  <div className="font-semibold">[m
+[32m+[m[32m                    {b.emoji} Anchored to the text[m
+                   </div>[m
+[31m-                );[m
+[31m-              })()}[m
+[31m-[m
+[31m-              {(() => {[m
+[31m-                const b = checkBadge(m2);[m
+[31m-                return ([m
+[31m-                  <div className={`rounded-2xl border p-4 ${b.cls}`}>[m
+[31m-                    <div className="text-sm font-semibold">{b.emoji} Specific + measurable</div>[m
+[31m-                    <div className="mt-1 text-sm text-slate-800">[m
+[31m-                      {m2 === "pass"[m
+[31m-                        ? "Clear action + timeframe."[m
+[31m-                        : m2 === "warn"[m
+[31m-                          ? "Add a timeframe or concrete action (who/what/when)."[m
+[31m-                          : m2 === "fail"[m
+[31m-                            ? "This is vague — consider rewriting with a template."[m
+[31m-                            : "No application written yet."}[m
+[31m-                    </div>[m
+[32m+[m[32m                  <div className="mt-1 text-xs">[m
+[32m+[m[32m                    {a === "pass"[m
+[32m+[m[32m                      ? "Looks anchored."[m
+[32m+[m[32m                      : a === "warn"[m
+[32m+[m[32m                      ? "Consider adding a verse reference or a “because/therefore” connection."[m
+[32m+[m[32m                      : a === "fail"[m
+[32m+[m[32m                      ? "This reads unanchored — tie it to an observation or verse."[m
+[32m+[m[32m                      : "No application written yet."}[m
+                   </div>[m
+[31m-                );[m
+[31m-              })()}[m
+[31m-[m
+[31m-              {(() => {[m
+[31m-                const b = checkBadge(g);[m
+[31m-                return ([m
+[31m-                  <div className={`rounded-2xl border p-4 ${b.cls}`}>[m
+[31m-                    <div className="text-sm font-semibold">{b.emoji} God-centered motive</div>[m
+[31m-                    <div className="mt-1 text-sm text-slate-800">[m
+[31m-                      {g === "pass"[m
+[31m-                        ? "Reads God-centered."[m
+[31m-                        : g === "warn"[m
+[31m-                          ? "Consider adding motive: “because God…” “in response to…”"[m
+[31m-                          : g === "fail"[m
+[31m-                            ? "This reads self-centered — reframe as response to what God has done/said."[m
+[31m-                            : "No application written yet."}[m
+[31m-                    </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m              );[m
+[32m+[m[32m            })()}[m
+[32m+[m
+[32m+[m[32m            {(() => {[m
+[32m+[m[32m              const b = checkBadge(m2);[m
+[32m+[m[32m              return ([m
+[32m+[m[32m                <div className={`rounded-2xl border px-4 py-3 text-sm ${b.cls}`}>[m
+[32m+[m[32m                  <div className="font-semibold">[m
+[32m+[m[32m                    {b.emoji} Specific + measurable[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                  <div className="mt-1 text-xs">[m
+[32m+[m[32m                    {m2 === "pass"[m
+[32m+[m[32m                      ? "Clear action + timeframe."[m
+[32m+[m[32m                      : m2 === "warn"[m
+[32m+[m[32m                      ? "Add a timeframe or concrete action (who/what/when)."[m
+[32m+[m[32m                      : m2 === "fail"[m
+[32m+[m[32m                      ? "This is vague — consider rewriting with a template."[m
+[32m+[m[32m                      : "No application written yet."}[m
+                   </div>[m
+[31m-                );[m
+[31m-              })()}[m
+[31m-            </div>[m
+[31m-[m
+[31m-            <div className="mt-6 space-y-4">[m
+[31m-              {sections.length ? ([m
+[31m-                sections.map((s) => ([m
+[31m-                  <section[m
+[31m-                    key={s.label}[m
+[31m-                    id={[m
+[31m-                      s.label === "Observations"[m
+[31m-                        ? "obs"[m
+[31m-                        : s.label === "Original audience"[m
+[31m-                          ? "aud"[m
+[31m-                          : s.label === "Meaning (then)"[m
+[31m-                            ? "mean"[m
+[31m-                            : s.label === "Similarities (bridge)"[m
+[31m-                              ? "sim"[m
+[31m-                              : s.label === "Differences (guardrails)"[m
+[31m-                                ? "diff"[m
+[31m-                                : s.label === "Application / response"[m
+[31m-                                  ? "app"[m
+[31m-                                  : undefined[m
+[31m-                    }[m
+[31m-                    className="rounded-2xl border border-slate-200 bg-white p-4"[m
+[31m-                  >[m
+[31m-                    <div className="text-sm font-semibold text-slate-900">{s.label}</div>[m
+[31m-                    <div className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{s.value}</div>[m
+[31m-                  </section>[m
+[31m-                ))[m
+[31m-              ) : ([m
+[31m-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">[m
+[31m-                  No content yet — jump back to the editor to add observations and application.[m
+                 </div>[m
+[31m-              )}[m
+[31m-            </div>[m
+[31m-[m
+[31m-            <script[m
+[31m-              suppressHydrationWarning[m
+[31m-              dangerouslySetInnerHTML={{[m
+[31m-                __html: `(function(){[m
+[31m-  function decodeJSON(s){ try { return JSON.parse(s); } catch(e){ return s || ""; } }[m
+[31m-  async function copyText(t){[m
+[31m-    try{ if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(t); return true; } }catch(e){}[m
+[31m-    try{[m
+[31m-      var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0';[m
+[31m-      document.body.appendChild(ta); ta.focus(); ta.select();[m
+[31m-      var ok=document.execCommand('copy'); document.body.removeChild(ta); return ok;[m
+[31m-    }catch(e){ return false; }[m
+[31m-  }[m
+[31m-  function esc(s){ return String(s||"").replace(/[&<>"]/g,function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]);}); }[m
+[31m-  function renderPrintHtml(contextLabel, title, date, percent, meta, sections){[m
+[31m-    var html = [];[m
+[31m-    html.push('<!doctype html><html><head><meta charset="utf-8" />');[m
+[31m-    html.push('<title>'+esc(title)+'</title>');[m
+[31m-    html.push('<style>body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; margin:32px; color:#0f172a;} h1{margin:0; font-size:22px;} .kicker{color:#475569; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.06em;} .hdr{border:1px solid #e2e8f0; border-radius:14px; padding:14px; margin:0 0 16px;} .meta{color:#475569; margin-top:8px; font-size:12px;} .meta b{color:#0f172a;} .card{border:1px solid #e2e8f0; border-radius:14px; padding:14px; margin:12px 0;} .h{font-weight:700; margin-bottom:8px; font-size:13px;} .t{white-space:pre-wrap; font-size:13px; color:#334155;} @media print{ body{margin:18mm;} }</style>');[m
+[31m-    html.push('</head><body>');[m
+[31m-    html.push('<div class="hdr">');[m
+[31m-    html.push('<div class="kicker">'+esc(contextLabel)+'</div>');[m
+[31m-    html.push('<h1>'+esc(title)+'</h1>');[m
+[31m-    html.push('<div class="meta"><b>Date:</b> '+esc(date)+' &nbsp; • &nbsp; <b>Completion:</b> '+esc(percent)+'%<br />'+esc(meta)+'</div>');[m
+[31m-    html.push('</div>');[m
+[31m-    (sections||[]).forEach(function(s){[m
+[31m-      html.push('<div class="card"><div class="h">'+esc(s.label)+'</div><div class="t">'+esc(s.value)+'</div></div>');[m
+[31m-    });[m
+[31m-    html.push('</body></html>');[m
+[31m-    return html.join('');[m
+[31m-  }[m
+[31m-  document.addEventListener('click', async function(e){[m
+[31m-    var btn = e.target && e.target.closest ? e.target.closest('[data-bsh-action]') : null;[m
+[31m-    if(!btn) return;[m
+[31m-    var action = btn.getAttribute('data-bsh-action');[m
+[31m-    if(action==='copy' || action==='share'){[m
+[31m-      var text = decodeJSON(btn.getAttribute('data-bsh-text')||"");[m
+[31m-      if(action==='share' && navigator.share){[m
+[31m-        try{[m
+[31m-          var title = decodeJSON(btn.getAttribute('data-bsh-title')||"Session Summary");[m
+[31m-          await navigator.share({ title: title, text: text });[m
+[31m-          return;[m
+[31m-        }catch(err){}[m
+[31m-      }[m
+[31m-      var ok = await copyText(String(text||""));[m
+[31m-      if(ok){[m
+[31m-        btn.textContent = action==='copy' ? 'Copied' : 'Copied (share not supported)';[m
+[31m-        setTimeout(function(){ btn.textContent = action==='copy' ? 'Copy summary' : 'Share'; }, 1600);[m
+[31m-      }[m
+[31m-      return;[m
+[31m-    }[m
+[31m-    if(action==='print'){[m
+[31m-      var title = decodeJSON(btn.getAttribute('data-bsh-title')||"Study session");[m
+[31m-      var contextLabel = decodeJSON(btn.getAttribute('data-bsh-context')||"Bible Study");[m
+[31m-      var date = decodeJSON(btn.getAttribute('data-bsh-date')||"");[m
+[31m-      var percent = decodeJSON(btn.getAttribute('data-bsh-percent')||"0");[m
+[31m-      var meta = decodeJSON(btn.getAttribute('data-bsh-meta')||"");[m
+[31m-      var sections = decodeJSON(btn.getAttribute('data-bsh-sections')||"[]");[m
+[31m-      try{[m
+[31m-        var w = window.open('', '_blank');[m
+[31m-        if(!w) return;[m
+[31m-        w.document.open();[m
+[31m-        w.document.write(renderPrintHtml(contextLabel, title, date, percent, meta, sections));[m
+[31m-        w.document.close();[m
+[31m-        w.focus();[m
+[31m-        setTimeout(function(){ w.print(); }, 250);[m
+[31m-      }catch(err){}[m
+[31m-    }[m
+[31m-  }, true);[m
+[31m-})();`,[m
+[31m-              }}[m
+[31m-            />[m
+[31m-          </section>[m
+[31m-        );[m
+[31m-      })()}[m
+[31m-[m
+[31m-      <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="text-sm font-semibold">Mark complete</div>[m
+[31m-        <form action={markCompleteAction.bind(null, session.id)} className="mt-3">[m
+[31m-          <button[m
+[31m-            type="submit"[m
+[31m-            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"[m
+[31m-          >[m
+[31m-            Mark complete[m
+[31m-          </button>[m
+[31m-        </form>[m
+[31m-      </section>[m
+[32m+[m[32m              );[m
+[32m+[m[32m            })()}[m
+[32m+[m
+[32m+[m[32m            {(() => {[m
+[32m+[m[32m              const b = checkBadge(g);[m
+[32m+[m[32m              return ([m
+[32m+[m[32m                <div className={`rounded-2xl border px-4 py-3 text-sm ${b.cls}`}>[m
+[32m+[m[32m                  <div className="font-semibold">[m
+[32m+[m[32m                    {b.emoji} God-centered motive[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                  <div className="mt-1 text-xs">[m
+[32m+[m[32m                    {g === "pass"[m
+[32m+[m[32m                      ? "Reads God-centered."[m
+[32m+[m[32m                      : g === "warn"[m
+[32m+[m[32m                      ? "Consider adding motive: “because God…” “in response to…”"[m
+[32m+[m[32m                      : g === "fail"[m
+[32m+[m[32m                      ? "This reads self-centered — reframe as response to what God has done/said."[m
+[32m+[m[32m                      : "No application written yet."}[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m              );[m
+[32m+[m[32m            })()}[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div className="mt-5 space-y-4">[m
+[32m+[m[32m            {sections.length ? ([m
+[32m+[m[32m              sections.map((s) => ([m
+[32m+[m[32m                <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-4">[m
+[32m+[m[32m                  <div className="text-sm font-semibold text-slate-900">{s.label}</div>[m
+[32m+[m[32m                  <div className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{s.value}</div>[m
+[32m+[m[32m                </div>[m
+[32m+[m[32m              ))[m
+[32m+[m[32m            ) : ([m
+[32m+[m[32m              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">[m
+[32m+[m[32m                No content yet — jump back to the editor to add observations and application.[m
+[32m+[m[32m              </div>[m
+[32m+[m[32m            )}[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      </div>[m
+     </div>[m
+   );[m
+ }[m
+[1mdiff --git a/src/app/studies/[planid]/page.tsx b/src/app/studies/[planid]/page.tsx[m
+[1mindex b0eda43..1c478a1 100644[m
+[1m--- a/src/app/studies/[planid]/page.tsx[m
+[1m+++ b/src/app/studies/[planid]/page.tsx[m
+[36m@@ -2,16 +2,12 @@[m
+ import { redirect } from "next/navigation";[m
+ import { getPersonalTenantOrThrow } from "@/lib/tenant_personal";[m
+ import { getStudyById, hardDeleteStudy } from "@/lib/db/studies";[m
+[31m-import {[m
+[31m-  listSessionsForPlan,[m
+[31m-  createSession,[m
+[31m-  hardDeleteSession,[m
+[31m-} from "@/lib/db/study_sessions";[m
+[32m+[m[32mimport { listSessionsForPlan, createSession, hardDeleteSession } from "@/lib/db/study_sessions";[m
+[32m+[m[32mimport { ConfirmDangerAction } from "@/components/ConfirmDangerAction";[m
+ [m
+[31m-async function newSessionAction(args: { planId: string }, formData: FormData) {[m
+[32m+[m[32masync function newSessionAction(planId: string, formData: FormData) {[m
+   "use server";[m
+   const tenant = await getPersonalTenantOrThrow();[m
+[31m-  const planId = args.planId;[m
+ [m
+   const passage = String(formData.get("passage") ?? "").trim();[m
+   const track = String(formData.get("track") ?? "beginner").trim();[m
+[36m@@ -26,14 +22,14 @@[m [masync function newSessionAction(args: { planId: string }, formData: FormData) {[m
+     mode,[m
+   });[m
+ [m
+[31m-  redirect(`/sessions/${sessionId}`);[m
+[32m+[m[32m  redirect(`/sessions/${encodeURIComponent(sessionId)}`);[m
+ }[m
+ [m
+ async function deleteStudyAction(planId: string) {[m
+   "use server";[m
+   const tenant = await getPersonalTenantOrThrow();[m
+   await hardDeleteStudy({ workspaceId: tenant.id, id: planId });[m
+[31m-  redirect("/studies");[m
+[32m+[m[32m  redirect(`/studies`);[m
+ }[m
+ [m
+ async function deleteSessionAction(args: { planId: string; sessionId: string }) {[m
+[36m@@ -43,36 +39,26 @@[m [masync function deleteSessionAction(args: { planId: string; sessionId: string })[m
+   redirect(`/studies/${encodeURIComponent(args.planId)}`);[m
+ }[m
+ [m
+[31m-function formatDate(value: string) {[m
+[32m+[m[32mfunction formatDate(iso: string) {[m
+   try {[m
+[31m-    return new Date(value).toLocaleDateString(undefined, {[m
+[31m-      year: "numeric",[m
+[31m-      month: "short",[m
+[31m-      day: "numeric",[m
+[31m-    });[m
+[32m+[m[32m    return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });[m
+   } catch {[m
+[31m-    return value;[m
+[32m+[m[32m    return iso;[m
+   }[m
+ }[m
+ [m
+[31m-export default async function StudyDetailPage({[m
+[31m-  params,[m
+[31m-}: {[m
+[31m-  params: Promise<{ planid: string }>;[m
+[31m-}) {[m
+[32m+[m[32mexport default async function StudyDetailPage({ params }: { params: Promise<{ planid: string }> }) {[m
+   const p = await params;[m
+   const tenant = await getPersonalTenantOrThrow();[m
+   const study = await getStudyById(tenant.id, p.planid);[m
+ [m
+   if (!study) {[m
+     return ([m
+[31m-      <div className="grid gap-6">[m
+[31m-        <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">[m
+[31m-          <div className="text-xs text-slate-500">Bible Study • Personal</div>[m
+[31m-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">[m
+[31m-            Study not found.[m
+[31m-          </h1>[m
+[31m-        </section>[m
+[32m+[m[32m      <div className="mx-auto max-w-3xl px-4 py-8">[m
+[32m+[m[32m        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m          <div className="text-sm font-semibold text-slate-700">Bible Study</div>[m
+[32m+[m[32m          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Study not found.</h1>[m
+[32m+[m[32m        </div>[m
+       </div>[m
+     );[m
+   }[m
+[36m@@ -80,166 +66,122 @@[m [mexport default async function StudyDetailPage({[m
+   const sessions = await listSessionsForPlan(tenant.id, study.id);[m
+ [m
+   return ([m
+[31m-    <div className="grid gap-6">[m
+[31m-      <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="text-xs text-slate-500">Bible Study • Personal</div>[m
+[31m-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">[m
+[31m-          <h1 className="text-2xl font-semibold tracking-tight">{study.title}</h1>[m
+[31m-        </div>[m
+[31m-[m
+[31m-        <div className="mt-2 text-sm text-slate-600">[m
+[31m-          {study.book} • {study.passage}[m
+[31m-        </div>[m
+[31m-[m
+[31m-        {Array.isArray(study.tags) && study.tags.length ? ([m
+[31m-          <div className="mt-4 flex flex-wrap gap-2">[m
+[31m-            {study.tags.map((t) => ([m
+[31m-              <span[m
+[31m-                key={t}[m
+[31m-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"[m
+[31m-              >[m
+[31m-                {t}[m
+[31m-              </span>[m
+[31m-            ))}[m
+[32m+[m[32m    <div className="mx-auto max-w-3xl px-4 py-8">[m
+[32m+[m[32m      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="text-sm font-semibold text-slate-700">Bible Study • Personal</div>[m
+[32m+[m[32m        <div className="mt-1 flex items-start justify-between gap-4">[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <h1 className="text-xl font-semibold tracking-tight text-slate-900">{study.title}</h1>[m
+[32m+[m[32m            <div className="mt-1 text-sm text-slate-700">[m
+[32m+[m[32m              {study.book} • {study.passage}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m            {Array.isArray(study.tags) && study.tags.length ? ([m
+[32m+[m[32m              <div className="mt-2 flex flex-wrap gap-2">[m
+[32m+[m[32m                {study.tags.map((t: string) => ([m
+[32m+[m[32m                  <span key={t} className="rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">[m
+[32m+[m[32m                    {t}[m
+[32m+[m[32m                  </span>[m
+[32m+[m[32m                ))}[m
+[32m+[m[32m              </div>[m
+[32m+[m[32m            ) : null}[m
+           </div>[m
+[31m-        ) : null}[m
+[31m-[m
+[31m-        <div className="mt-6 flex flex-wrap gap-2">[m
+[31m-          <a[m
+[31m-            href="/studies"[m
+[31m-            className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"[m
+[31m-          >[m
+[31m-            Back to studies[m
+[31m-          </a>[m
+[31m-[m
+[31m-          <form action={deleteStudyAction.bind(null, study.id)}>[m
+[31m-            <button[m
+[31m-              type="submit"[m
+[31m-              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"[m
+[32m+[m
+[32m+[m[32m          <div className="flex flex-wrap items-center gap-2">[m
+[32m+[m[32m            <a[m
+[32m+[m[32m              href="/studies"[m
+[32m+[m[32m              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+             >[m
+[31m-              Delete[m
+[31m-            </button>[m
+[31m-          </form>[m
+[32m+[m[32m              Back to studies[m
+[32m+[m[32m            </a>[m
+[32m+[m
+[32m+[m[32m            <ConfirmDangerAction[m
+[32m+[m[32m              buttonLabel="Delete"[m
+[32m+[m[32m              title="Delete this study?"[m
+[32m+[m[32m              message="This will permanently delete the study and all sessions under it."[m
+[32m+[m[32m              dangerHint="This cannot be undone."[m
+[32m+[m[32m              action={deleteStudyAction.bind(null, study.id)}[m
+[32m+[m[32m            />[m
+[32m+[m[32m          </div>[m
+         </div>[m
+[31m-      </section>[m
+[31m-[m
+[31m-      {/* New session */}[m
+[31m-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="mb-3 text-sm font-semibold">New session</div>[m
+[31m-[m
+[31m-        <form[m
+[31m-          action={newSessionAction.bind(null, { planId: study.id })}[m
+[31m-          className="grid gap-4"[m
+[31m-        >[m
+[31m-          <label className="grid gap-1">[m
+[31m-            <div className="text-xs font-semibold text-slate-700">[m
+[31m-              Passage (optional)[m
+[31m-            </div>[m
+[32m+[m[32m      </div>[m
+[32m+[m
+[32m+[m[32m      <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="text-base font-semibold tracking-tight text-slate-900">New session</div>[m
+[32m+[m[32m        <form action={newSessionAction.bind(null, study.id)} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">[m
+[32m+[m[32m          <div className="sm:col-span-2">[m
+[32m+[m[32m            <div className="text-xs font-semibold text-slate-600">Passage (optional)</div>[m
+             <input[m
+               name="passage"[m
+[31m-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"[m
+[31m-              placeholder="John 1:1–18"[m
+[32m+[m[32m              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"[m
+[32m+[m[32m              placeholder="e.g., John 3:16-17"[m
+             />[m
+[31m-          </label>[m
+[31m-[m
+[31m-          <div className="grid gap-4 sm:grid-cols-2">[m
+[31m-            <label className="grid gap-1">[m
+[31m-              <div className="text-xs font-semibold text-slate-700">Track</div>[m
+[31m-              <select[m
+[31m-                name="track"[m
+[31m-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"[m
+[31m-                defaultValue="beginner"[m
+[31m-              >[m
+[31m-                <option value="beginner">beginner</option>[m
+[31m-                <option value="intermediate">intermediate</option>[m
+[31m-                <option value="advanced">advanced</option>[m
+[31m-              </select>[m
+[31m-            </label>[m
+[31m-[m
+[31m-            <label className="grid gap-1">[m
+[31m-              <div className="text-xs font-semibold text-slate-700">Mode</div>[m
+[31m-              <select[m
+[31m-                name="mode"[m
+[31m-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-slate-300 focus:ring-2"[m
+[31m-                defaultValue="guided"[m
+[31m-              >[m
+[31m-                <option value="guided">guided</option>[m
+[31m-                <option value="freeform">freeform</option>[m
+[31m-              </select>[m
+[31m-            </label>[m
+           </div>[m
+ [m
+[31m-          <button[m
+[31m-            type="submit"[m
+[31m-            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"[m
+[31m-          >[m
+[31m-            Create session[m
+[31m-          </button>[m
+[31m-        </form>[m
+[31m-      </section>[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <div className="text-xs font-semibold text-slate-600">Track</div>[m
+[32m+[m[32m            <select[m
+[32m+[m[32m              name="track"[m
+[32m+[m[32m              defaultValue="beginner"[m
+[32m+[m[32m              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              <option value="beginner">beginner</option>[m
+[32m+[m[32m              <option value="intermediate">intermediate</option>[m
+[32m+[m[32m              <option value="advanced">advanced</option>[m
+[32m+[m[32m            </select>[m
+[32m+[m[32m          </div>[m
+ [m
+[31m-      {/* Sessions list */}[m
+[31m-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="mb-3 text-sm font-semibold">[m
+[31m-          Sessions ({sessions.length})[m
+[31m-        </div>[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <div className="text-xs font-semibold text-slate-600">Mode</div>[m
+[32m+[m[32m            <select[m
+[32m+[m[32m              name="mode"[m
+[32m+[m[32m              defaultValue="guided"[m
+[32m+[m[32m              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              <option value="guided">guided</option>[m
+[32m+[m[32m              <option value="freeform">freeform</option>[m
+[32m+[m[32m            </select>[m
+[32m+[m[32m          </div>[m
+ [m
+[31m-        {sessions.length === 0 ? ([m
+[31m-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">[m
+[31m-            No sessions yet. Create one above.[m
+[32m+[m[32m          <div className="sm:col-span-2">[m
+[32m+[m[32m            <button className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">[m
+[32m+[m[32m              Create session[m
+[32m+[m[32m            </button>[m
+           </div>[m
+[31m-        ) : ([m
+[31m-          <div className="grid gap-3">[m
+[31m-            {sessions.map((s) => ([m
+[31m-              <div key={s.id} className="flex items-stretch gap-3">[m
+[31m-                <a[m
+[31m-                  href={`/sessions/${encodeURIComponent(s.id)}`}[m
+[31m-                  className="flex-1 rounded-xl border border-slate-200 p-4 hover:bg-slate-50"[m
+[31m-                >[m
+[31m-                  <div className="text-sm font-semibold">[m
+[31m-                    {s.passage ? s.passage : "Session"}[m
+[31m-                  </div>[m
+[31m-                  <div className="mt-1 text-xs text-slate-500">[m
+[31m-                    {formatDate(s.session_date)}[m
+[31m-                  </div>[m
+[31m-[m
+[31m-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">[m
+[31m-                    {s.track ? ([m
+[31m-                      <span className="rounded-xl bg-slate-100 px-3 py-1">[m
+[31m-                        {s.track}[m
+[31m-                      </span>[m
+[31m-                    ) : null}[m
+[31m-                    {s.mode ? ([m
+[31m-                      <span className="rounded-xl bg-slate-100 px-3 py-1">[m
+[31m-                        {s.mode}[m
+[31m-                      </span>[m
+[31m-                    ) : null}[m
+[31m-                    {s.status ? ([m
+[31m-                      <span className="rounded-xl bg-slate-100 px-3 py-1">[m
+[31m-                        {s.status}[m
+[31m-                      </span>[m
+[31m-                    ) : null}[m
+[31m-                  </div>[m
+[31m-                </a>[m
+[31m-[m
+[31m-                <form[m
+[31m-                  action={deleteSessionAction.bind(null, {[m
+[31m-                    planId: study.id,[m
+[31m-                    sessionId: s.id,[m
+[31m-                  })}[m
+[31m-                >[m
+[31m-                  <button[m
+[31m-                    type="submit"[m
+[31m-                    className="h-full rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"[m
+[31m-                  >[m
+[31m-                    Delete[m
+[31m-                  </button>[m
+[31m-                </form>[m
+[32m+[m[32m        </form>[m
+[32m+[m[32m      </div>[m
+[32m+[m
+[32m+[m[32m      <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="text-base font-semibold tracking-tight text-slate-900">Sessions ({sessions.length})</div>[m
+[32m+[m
+[32m+[m[32m        <div className="mt-4 space-y-3">[m
+[32m+[m[32m          {sessions.length === 0 ? ([m
+[32m+[m[32m            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">[m
+[32m+[m[32m              No sessions yet. Create one above.[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          ) : ([m
+[32m+[m[32m            sessions.map((s: any) => ([m
+[32m+[m[32m              <div key={s.id} className="rounded-2xl border border-slate-200 bg-white p-4">[m
+[32m+[m[32m                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">[m
+[32m+[m[32m                  <a href={`/sessions/${encodeURIComponent(s.id)}`} className="text-sm font-semibold text-slate-900">[m
+[32m+[m[32m                    {s.passage ? s.passage : "Session"} <span className="text-slate-500">• {formatDate(s.session_date)}</span>{" "}[m
+[32m+[m[32m                    {s.track ? <span className="text-slate-500">({s.track})</span> : null}{" "}[m
+[32m+[m[32m                    {s.mode ? <span className="text-slate-500">({s.mode})</span> : null}{" "}[m
+[32m+[m[32m                    {s.status ? <span className="text-slate-500">({s.status})</span> : null}[m
+[32m+[m[32m                  </a>[m
+[32m+[m
+[32m+[m[32m                  <ConfirmDangerAction[m
+[32m+[m[32m                    buttonLabel="Delete"[m
+[32m+[m[32m                    title="Delete this session?"[m
+[32m+[m[32m                    message="This will permanently delete the session and all responses."[m
+[32m+[m[32m                    dangerHint="This cannot be undone."[m
+[32m+[m[32m                    action={deleteSessionAction.bind(null, { planId: study.id, sessionId: s.id })}[m
+[32m+[m[32m                  />[m
+[32m+[m[32m                </div>[m
+               </div>[m
+[31m-            ))}[m
+[31m-          </div>[m
+[31m-        )}[m
+[31m-      </section>[m
+[32m+[m[32m            ))[m
+[32m+[m[32m          )}[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      </div>[m
+     </div>[m
+   );[m
+ }[m
+[1mdiff --git a/src/app/studies/page.tsx b/src/app/studies/page.tsx[m
+[1mindex cf907bd..3190ec6 100644[m
+[1m--- a/src/app/studies/page.tsx[m
+[1m+++ b/src/app/studies/page.tsx[m
+[36m@@ -2,6 +2,7 @@[m
+ import { redirect } from "next/navigation";[m
+ import { getPersonalTenantOrThrow } from "@/lib/tenant_personal";[m
+ import { hardDeleteStudy, listStudies } from "@/lib/db/studies";[m
+[32m+[m[32mimport { ConfirmDangerAction } from "@/components/ConfirmDangerAction";[m
+ [m
+ async function deleteStudyAction(planId: string) {[m
+   "use server";[m
+[36m@@ -15,58 +16,54 @@[m [mexport default async function StudiesPage() {[m
+   const studies = await listStudies(tenant.id);[m
+ [m
+   return ([m
+[31m-    <div className="grid gap-6">[m
+[31m-      <section className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">[m
+[31m-        <div className="text-xs text-slate-500">Bible Study • Personal</div>[m
+[31m-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">[m
+[31m-          <h1 className="text-2xl font-semibold tracking-tight">Studies</h1>[m
+[32m+[m[32m    <div className="mx-auto max-w-4xl px-4 py-8">[m
+[32m+[m[32m      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m        <div className="text-sm font-semibold text-slate-700">Bible Study • Personal</div>[m
+[32m+[m[32m        <div className="mt-1 flex items-center justify-between gap-4">[m
+[32m+[m[32m          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Studies</h1>[m
+           <a[m
+[31m-            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"[m
+             href="/studies/new"[m
+[32m+[m[32m            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"[m
+           >[m
+             New study[m
+           </a>[m
+         </div>[m
+[31m-        <p className="mt-3 text-sm text-slate-600">[m
+[31m-          Your personal Bible study workspace.[m
+[31m-        </p>[m
+[31m-      </section>[m
+[32m+[m[32m        <div className="mt-2 text-sm text-slate-600">Your personal Bible study workspace.</div>[m
+[32m+[m[32m      </div>[m
+ [m
+[31m-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">[m
+[32m+[m[32m      <div className="mt-6 space-y-3">[m
+         {studies.length === 0 ? ([m
+[31m-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">[m
+[32m+[m[32m          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-700">[m
+             No studies yet.[m
+           </div>[m
+         ) : ([m
+[31m-          <div className="grid gap-3">[m
+[31m-            {studies.map((s) => ([m
+[31m-              <div key={s.id} className="flex items-stretch gap-3">[m
+[31m-                <a[m
+[31m-                  href={`/studies/${s.id}`}[m
+[31m-                  className="flex-1 rounded-xl border border-slate-200 p-4 hover:bg-slate-50"[m
+[31m-                >[m
+[31m-                  <div className="text-sm font-semibold">{s.title}</div>[m
+[31m-                  <div className="mt-1 text-xs text-slate-500">[m
+[31m-                    {s.book} • {s.passage}[m
+[32m+[m[32m          studies.map((s: any) => ([m
+[32m+[m[32m            <div[m
+[32m+[m[32m              key={s.id}[m
+[32m+[m[32m              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">[m
+[32m+[m[32m                <div>[m
+[32m+[m[32m                  <a href={`/studies/${encodeURIComponent(s.id)}`} className="text-base font-semibold text-slate-900">[m
+[32m+[m[32m                    {s.title}[m
+[32m+[m[32m                  </a>[m
+[32m+[m[32m                  <div className="mt-1 text-sm text-slate-700">[m
+[32m+[m[32m                    {s.book} • {s.passage} {s.tags ? <span className="text-slate-500">({s.tags})</span> : null}[m
+                   </div>[m
+[31m-                  {s.tags ? ([m
+[31m-                    <div className="mt-2 text-sm text-slate-700">{s.tags}</div>[m
+[31m-                  ) : null}[m
+[31m-                </a>[m
+[32m+[m[32m                </div>[m
+ [m
+[31m-                <form action={deleteStudyAction.bind(null, s.id)}>[m
+[31m-                  <button[m
+[31m-                    type="submit"[m
+[31m-                    className="h-full rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"[m
+[31m-                  >[m
+[31m-                    Delete[m
+[31m-                  </button>[m
+[31m-                </form>[m
+[32m+[m[32m                <ConfirmDangerAction[m
+[32m+[m[32m                  buttonLabel="Delete"[m
+[32m+[m[32m                  title="Delete this study?"[m
+[32m+[m[32m                  message="This will permanently delete the study and all sessions under it."[m
+[32m+[m[32m                  dangerHint="This cannot be undone."[m
+[32m+[m[32m                  action={deleteStudyAction.bind(null, s.id)}[m
+[32m+[m[32m                />[m
+               </div>[m
+[31m-            ))}[m
+[31m-          </div>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          ))[m
+         )}[m
+[31m-      </section>[m
+[32m+[m[32m      </div>[m
+     </div>[m
+   );[m
+ }[m
+[1mdiff --git a/src/components/ConfirmDangerAction.tsx b/src/components/ConfirmDangerAction.tsx[m
+[1mnew file mode 100644[m
+[1mindex 0000000..9866caa[m
+[1m--- /dev/null[m
+[1m+++ b/src/components/ConfirmDangerAction.tsx[m
+[36m@@ -0,0 +1,111 @@[m
+[32m+[m[32m// src/components/ConfirmDangerAction.tsx[m
+[32m+[m[32m"use client";[m
+[32m+[m
+[32m+[m[32mimport * as React from "react";[m
+[32m+[m
+[32m+[m[32mtype Props = {[m
+[32m+[m[32m  /** Button label shown in the page (e.g. "Delete"). */[m
+[32m+[m[32m  buttonLabel: string;[m
+[32m+[m
+[32m+[m[32m  /** Modal title. */[m
+[32m+[m[32m  title: string;[m
+[32m+[m
+[32m+[m[32m  /** Modal body text. */[m
+[32m+[m[32m  message: string;[m
+[32m+[m
+[32m+[m[32m  /** Server action already bound to any needed ids (must take no args). */[m
+[32m+[m[32m  action: () => void | Promise<void>;[m
+[32m+[m
+[32m+[m[32m  /** Optional extra warning line. */[m
+[32m+[m[32m  dangerHint?: string;[m
+[32m+[m
+[32m+[m[32m  /** Optional: disable button. */[m
+[32m+[m[32m  disabled?: boolean;[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32mexport function ConfirmDangerAction({[m
+[32m+[m[32m  buttonLabel,[m
+[32m+[m[32m  title,[m
+[32m+[m[32m  message,[m
+[32m+[m[32m  action,[m
+[32m+[m[32m  dangerHint,[m
+[32m+[m[32m  disabled,[m
+[32m+[m[32m}: Props) {[m
+[32m+[m[32m  const [open, setOpen] = React.useState(false);[m
+[32m+[m[32m  const formRef = React.useRef<HTMLFormElement | null>(null);[m
+[32m+[m
+[32m+[m[32m  function close() {[m
+[32m+[m[32m    setOpen(false);[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  function confirm() {[m
+[32m+[m[32m    // Submit the server action form[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      formRef.current?.requestSubmit();[m
+[32m+[m[32m    } catch {[m
+[32m+[m[32m      // Fallback[m
+[32m+[m[32m      formRef.current?.submit();[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <>[m
+[32m+[m[32m      <button[m
+[32m+[m[32m        type="button"[m
+[32m+[m[32m        onClick={() => setOpen(true)}[m
+[32m+[m[32m        disabled={disabled}[m
+[32m+[m[32m        className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"[m
+[32m+[m[32m      >[m
+[32m+[m[32m        {buttonLabel}[m
+[32m+[m[32m      </button>[m
+[32m+[m
+[32m+[m[32m      {/* Hidden server-action form */}[m
+[32m+[m[32m      <form ref={formRef} action={action} className="hidden">[m
+[32m+[m[32m        <button type="submit" />[m
+[32m+[m[32m      </form>[m
+[32m+[m
+[32m+[m[32m      {open ? ([m
+[32m+[m[32m        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">[m
+[32m+[m[32m          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200">[m
+[32m+[m[32m            <div className="flex items-start justify-between gap-4">[m
+[32m+[m[32m              <div>[m
+[32m+[m[32m                <div className="text-base font-semibold tracking-tight text-slate-900">{title}</div>[m
+[32m+[m[32m                <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{message}</div>[m
+[32m+[m[32m                {dangerHint ? ([m
+[32m+[m[32m                  <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">[m
+[32m+[m[32m                    {dangerHint}[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                ) : null}[m
+[32m+[m[32m              </div>[m
+[32m+[m
+[32m+[m[32m              <button[m
+[32m+[m[32m                type="button"[m
+[32m+[m[32m                onClick={close}[m
+[32m+[m[32m                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m              >[m
+[32m+[m[32m                Close[m
+[32m+[m[32m              </button>[m
+[32m+[m[32m            </div>[m
+[32m+[m
+[32m+[m[32m            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">[m
+[32m+[m[32m              <button[m
+[32m+[m[32m                type="button"[m
+[32m+[m[32m                onClick={close}[m
+[32m+[m[32m                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"[m
+[32m+[m[32m              >[m
+[32m+[m[32m                Cancel[m
+[32m+[m[32m              </button>[m
+[32m+[m[32m              <button[m
+[32m+[m[32m                type="button"[m
+[32m+[m[32m                onClick={confirm}[m
+[32m+[m[32m                className="rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white hover:bg-rose-500"[m
+[32m+[m[32m              >[m
+[32m+[m[32m                Yes, delete[m
+[32m+[m[32m              </button>[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      ) : null}[m
+[32m+[m[32m    </>[m
+[32m+[m[32m  );[m
+[32m+[m[32m}[m
