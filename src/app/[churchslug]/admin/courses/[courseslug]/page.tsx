@@ -1,3 +1,4 @@
+// src/app/[churchslug]/admin/courses/[courseslug]/page.tsx
 import { redirect } from "next/navigation";
 import { getTenantBySlugOrThrow } from "@/lib/tenant";
 import { requireWorkspaceAdmin } from "@/lib/admin";
@@ -38,20 +39,25 @@ async function saveAction(
     status,
   });
 
-  redirect(`/${args.churchslug}/admin/courses/${args.courseId}`);
+  // Keep the admin edit route stable: /admin/courses/:id
+  redirect(`/${args.churchslug}/admin/courses/${encodeURIComponent(args.courseId)}`);
 }
 
 export default async function AdminEditCoursePage({
   params,
 }: {
-  params: Promise<{ churchslug: string; courseid: string }>;
+  // NOTE: folder name is [courseslug], but the app currently routes by COURSE ID here.
+  // So params key is `courseslug`, and its value is a UUID course id (from the list page link).
+  params: Promise<{ churchslug: string; courseslug: string }>;
 }) {
   const p = await params;
 
   const tenant = await getTenantBySlugOrThrow(p.churchslug);
   await requireWorkspaceAdmin(tenant.id);
 
-  const course = await getAdminCourseById(tenant.id, p.courseid);
+  const courseId = p.courseslug; // this is actually the UUID id
+  const course = await getAdminCourseById(tenant.id, courseId);
+
   if (!course) {
     return (
       <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
@@ -70,14 +76,16 @@ export default async function AdminEditCoursePage({
 
           <div className="flex flex-wrap gap-2">
             <a
-              href={`/${p.churchslug}/admin/courses/${course.slug}/sessions`}
+              href={`/${encodeURIComponent(p.churchslug)}/admin/courses/${encodeURIComponent(
+                course.slug
+              )}/sessions`}
               className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
             >
               Manage sessions
             </a>
 
             <a
-              href={`/${p.churchslug}/admin/courses`}
+              href={`/${encodeURIComponent(p.churchslug)}/admin/courses`}
               className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
             >
               Back to courses
@@ -148,14 +156,16 @@ export default async function AdminEditCoursePage({
             </button>
 
             <a
-              href={`/${p.churchslug}/courses/${course.slug}`}
+              href={`/${encodeURIComponent(p.churchslug)}/courses/${encodeURIComponent(course.slug)}`}
               className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
             >
               View public page
             </a>
 
             <a
-              href={`/${p.churchslug}/admin/courses/${course.id}/sessions`}
+              href={`/${encodeURIComponent(p.churchslug)}/admin/courses/${encodeURIComponent(
+                course.slug
+              )}/sessions`}
               className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
             >
               Manage sessions
